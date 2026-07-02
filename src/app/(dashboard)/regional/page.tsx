@@ -4,10 +4,10 @@ This Regional Performance page compares Shopify revenue, orders, AOV, and Klaviy
 regions. It helps internal users quickly spot stronger and weaker markets.
 */
 
-import { Globe2, MailCheck, ShoppingCart, TrendingUp } from "lucide-react";
 import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { FilterBar } from "@/components/filter-bar";
 import { MetricCard } from "@/components/metric-card";
+import { ReportHeader } from "@/components/report-header";
 import { formatCurrency, formatNumber, formatPercent, safeRate } from "@/lib/format";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { parseDashboardFilters, type RawSearchParams } from "@/lib/filters";
@@ -24,30 +24,36 @@ export default async function RegionalPage({
   const columns: DataTableColumn<RegionalSummary>[] = [
     {
       header: "Region",
+      description: "The active store region configured in the dashboard.",
       cell: (row) => <span className="font-medium text-slate-950">{row.region.name}</span>,
     },
     {
       header: "Revenue",
+      description: "Total Shopify revenue for this region and date range, shown in the region's own currency.",
       align: "right",
       cell: (row) => formatCurrency(row.shopifyRevenue, row.region.currency_code),
     },
     {
       header: "Orders",
+      description: "Total synced Shopify orders for this region and date range.",
       align: "right",
       cell: (row) => formatNumber(row.orders),
     },
     {
       header: "AOV",
+      description: "Average order value. It is calculated as Shopify revenue divided by Shopify orders.",
       align: "right",
       cell: (row) => formatCurrency(safeRate(row.shopifyRevenue, row.orders), row.region.currency_code),
     },
     {
       header: "Klaviyo revenue",
+      description: "Klaviyo-attributed campaign and flow revenue synced for this region and date range.",
       align: "right",
       cell: (row) => formatCurrency(row.klaviyoRevenue, row.region.currency_code),
     },
     {
       header: "Klaviyo share",
+      description: "Klaviyo-attributed revenue divided by Shopify revenue for this region.",
       align: "right",
       cell: (row) => formatPercent(safeRate(row.klaviyoRevenue, row.shopifyRevenue)),
     },
@@ -57,39 +63,39 @@ export default async function RegionalPage({
     <div className="space-y-6 pb-10">
       <FilterBar filters={filters} regions={data.regions} />
       <section className="px-4 lg:px-6">
-        <div className="mb-4">
-          <h1 className="text-2xl font-semibold tracking-normal text-slate-950">Regional Performance</h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {data.selectedRegions.length} region(s), {filters.startDate} to {filters.endDate}
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <ReportHeader
+          eyebrow="Market comparison"
+          title="Regional Performance"
+          description="Compare revenue, order volume, and Klaviyo contribution across active regions."
+          meta={`${data.selectedRegions.length} region(s), ${filters.startDate} to ${filters.endDate}`}
+        />
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Regions"
             value={formatNumber(data.selectedRegions.length)}
             helper="Active regions in the selected filter."
-            icon={Globe2}
+            description="Count of active dashboard regions included after the region filter is applied."
             accent="slate"
           />
           <MetricCard
             label="Revenue"
             value={formatCurrency(data.summary.shopifyRevenue, currencyCode)}
             helper="Actual Shopify revenue."
-            icon={TrendingUp}
+            description="Sum of Shopify revenue rows across the selected regions and date range. Multiple currencies are not converted."
             accent="teal"
           />
           <MetricCard
             label="Orders"
             value={formatNumber(data.summary.orders)}
             helper={`${formatCurrency(safeRate(data.summary.shopifyRevenue, data.summary.orders), currencyCode)} AOV`}
-            icon={ShoppingCart}
+            description="Total synced Shopify orders. The helper AOV is Shopify revenue divided by orders."
             accent="blue"
           />
           <MetricCard
             label="Klaviyo contribution"
             value={formatPercent(safeRate(data.summary.klaviyoRevenue, data.summary.shopifyRevenue))}
             helper={formatCurrency(data.summary.klaviyoRevenue, currencyCode)}
-            icon={MailCheck}
+            description="Klaviyo-attributed revenue divided by Shopify revenue for the selected regions and dates."
             accent="amber"
           />
         </div>

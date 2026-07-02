@@ -20,7 +20,7 @@ Klaviyo platform connections without editing environment JSON.
 - Multi-step Klaviyo setup modal.
 - Provider-specific save forms for region metadata and platform credentials.
 - Timezone dropdown for region timezone selection.
-- Automatic Klaviyo conversion metric detection guidance inside the Klaviyo modal.
+- Best-effort Klaviyo conversion metric detection guidance inside the Klaviyo modal.
 - Disconnect controls for Shopify and Klaviyo.
 - Region deactivation control.
 
@@ -31,7 +31,8 @@ Klaviyo platform connections without editing environment JSON.
 - Lets users save Shopify and Klaviyo independently instead of requiring both credentials at the same time.
 - Guides users through each provider setup in a focused popup modal before showing the save form.
 - Validates timezone values as IANA timezones and gives users a dropdown instead of free text.
-- Automatically detects a Klaviyo conversion metric ID from the connected account using Klaviyo's Metrics API.
+- Tries to detect a Klaviyo conversion metric ID from the connected account using Klaviyo's Metrics API,
+  without blocking encrypted key storage if metric lookup is denied.
 - Never shows saved secrets back to the browser.
 - Lets non-developer operators manage connections safely.
 - Keeps historical reporting rows when a platform or region is disconnected.

@@ -9,6 +9,10 @@ import "server-only";
 import { getKlaviyoRevision } from "@/lib/env";
 import type { RegionIntegrationConfig } from "@/lib/types";
 
+type KlaviyoRegionConfig = RegionIntegrationConfig & {
+  klaviyoPrivateKey: string;
+};
+
 export type KlaviyoCampaignSyncRow = {
   campaign_id: string;
   campaign_name: string;
@@ -78,7 +82,7 @@ function readNumber(source: KlaviyoJson, keys: string[]) {
 }
 
 async function klaviyoRequest(params: {
-  region: RegionIntegrationConfig;
+  region: KlaviyoRegionConfig;
   path: string;
   body: KlaviyoJson;
 }) {
@@ -293,7 +297,7 @@ export async function fetchPreferredKlaviyoConversionMetricId(params: {
 }
 
 export async function fetchKlaviyoCampaignReports(params: {
-  region: RegionIntegrationConfig;
+  region: KlaviyoRegionConfig;
   startDate: string;
   endDate: string;
 }): Promise<KlaviyoCampaignSyncRow[]> {
@@ -352,7 +356,7 @@ export async function fetchKlaviyoCampaignReports(params: {
 }
 
 export async function fetchKlaviyoFlowReports(params: {
-  region: RegionIntegrationConfig;
+  region: KlaviyoRegionConfig;
   startDate: string;
   endDate: string;
 }): Promise<KlaviyoFlowSyncRow[]> {

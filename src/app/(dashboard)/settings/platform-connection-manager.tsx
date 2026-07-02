@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { StatusBadge } from "@/components/status-badge";
+import { buttonClassName, SelectControl, TextControl } from "@/components/ui-controls";
 import { formatDateTime } from "@/lib/format";
 import type { PlatformConnectionSummary } from "@/lib/types";
 import {
@@ -126,6 +127,7 @@ const guideSteps: Record<Provider, GuideStep[]> = {
         "Grant campaigns:read.",
         "Grant flows:read.",
         "Grant metrics:read so the dashboard can detect the conversion metric ID automatically.",
+        "If metrics:read is missing, the key can still be saved for campaign and flow sync.",
       ],
     },
     {
@@ -135,7 +137,7 @@ const guideSteps: Record<Provider, GuideStep[]> = {
         "No metric ID needs to be pasted manually.",
         "The server calls Klaviyo's Metrics API with fields[metric]=id,name,integration.",
         "It prefers revenue metrics like Placed Order or Ordered Product.",
-        "If Klaviyo denies the lookup, update the private key scopes to include metrics:read.",
+        "If Klaviyo denies the lookup, sync still uses the saved key and revenue metric detection can be retried later.",
       ],
     },
     {
@@ -145,15 +147,11 @@ const guideSteps: Record<Provider, GuideStep[]> = {
         "Choose the same region that this Klaviyo account belongs to.",
         "Choose a clear account label, such as US Klaviyo.",
         "Paste the key only when connecting or replacing it.",
-        "After saving, the dashboard encrypts the key and stores the detected metric ID.",
+        "After saving, the dashboard encrypts the key and stores the detected metric ID when Klaviyo allows it.",
       ],
     },
   ],
 };
-
-const inputClass =
-  "h-10 rounded-md border border-slate-300 px-3 text-sm text-slate-900 outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100";
-const selectClass = `${inputClass} bg-white`;
 
 const timezoneOptions = [
   { value: "UTC", label: "UTC" },
@@ -187,7 +185,7 @@ function ConnectionPill({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${
         connected ? "bg-teal-50 text-teal-700" : "bg-slate-100 text-slate-600"
       }`}
     >
@@ -236,12 +234,12 @@ function PlatformConnectionCard({
   const disabled = !connection.isActive;
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 transition duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold text-slate-950">{connection.name}</h2>
-            <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-600">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
               {connection.slug}
             </span>
             <StatusBadge status={connection.isActive ? "success" : "failed"} />
@@ -284,7 +282,11 @@ function PlatformConnectionCard({
           type="button"
           disabled={disabled}
           onClick={() => onConnect("shopify", connection)}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className={buttonClassName({
+            variant: "secondary",
+            size: "md",
+            className: "w-full disabled:opacity-50",
+          })}
         >
           <ShoppingBag aria-hidden="true" className="h-4 w-4" />
           {connection.shopifyConnected ? "Update Shopify" : "Connect Shopify"}
@@ -293,7 +295,11 @@ function PlatformConnectionCard({
           type="button"
           disabled={disabled}
           onClick={() => onConnect("klaviyo", connection)}
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className={buttonClassName({
+            variant: "secondary",
+            size: "md",
+            className: "w-full disabled:opacity-50",
+          })}
         >
           <Mail aria-hidden="true" className="h-4 w-4" />
           {connection.klaviyoConnected ? "Update Klaviyo" : "Connect Klaviyo"}
@@ -307,7 +313,11 @@ function PlatformConnectionCard({
           <button
             type="submit"
             disabled={disabled || !connection.shopifyConnected}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={buttonClassName({
+              variant: "ghost",
+              size: "sm",
+              className: "disabled:opacity-50",
+            })}
           >
             <Link2Off aria-hidden="true" className="h-4 w-4" />
             Disconnect Shopify
@@ -319,7 +329,11 @@ function PlatformConnectionCard({
           <button
             type="submit"
             disabled={disabled || !connection.klaviyoConnected}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={buttonClassName({
+              variant: "ghost",
+              size: "sm",
+              className: "disabled:opacity-50",
+            })}
           >
             <Link2Off aria-hidden="true" className="h-4 w-4" />
             Disconnect Klaviyo
@@ -330,7 +344,11 @@ function PlatformConnectionCard({
           <button
             type="submit"
             disabled={disabled}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-rose-200 px-3 text-sm font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={buttonClassName({
+              variant: "danger",
+              size: "sm",
+              className: "disabled:opacity-50",
+            })}
           >
             <AlertTriangle aria-hidden="true" className="h-4 w-4" />
             Deactivate region
@@ -356,40 +374,37 @@ function ConnectionFormFields({
     <div className="grid gap-4 md:grid-cols-2">
       <input name="provider" type="hidden" value={provider} />
       <Field label="Region slug">
-        <input
+        <TextControl
           name="slug"
           required
           defaultValue={connection?.slug || ""}
           placeholder="us"
           pattern="[a-z0-9-]+"
-          className={inputClass}
         />
       </Field>
       <Field label="Region name">
-        <input
+        <TextControl
           name="name"
           required
           defaultValue={connection?.name || ""}
           placeholder="United States"
-          className={inputClass}
         />
       </Field>
       <Field label="Currency code">
-        <input
+        <TextControl
           name="currencyCode"
           required
           defaultValue={connection?.currencyCode || ""}
           placeholder="USD"
           maxLength={3}
-          className={`${inputClass} uppercase`}
+          className="uppercase"
         />
       </Field>
       <Field label="Timezone">
-        <select
+        <SelectControl
           name="timezone"
           required
           defaultValue={connection?.timezone || ""}
-          className={selectClass}
         >
           <option value="" disabled>
             Select timezone
@@ -402,27 +417,25 @@ function ConnectionFormFields({
               {option.label}
             </option>
           ))}
-        </select>
+        </SelectControl>
       </Field>
 
       {provider === "shopify" ? (
         <>
           <Field label="Shopify shop domain" className="md:col-span-2">
-            <input
+            <TextControl
               name="shopifyShopDomain"
               required
               defaultValue={connection?.shopifyShopDomain || ""}
               placeholder="brand-us.myshopify.com"
-              className={inputClass}
             />
           </Field>
           <Field label="Shopify Admin API token" className="md:col-span-2">
-            <input
+            <TextControl
               name="shopifyAdminAccessToken"
               type="password"
               required={!hasExistingCredential}
               placeholder={hasExistingCredential ? "Paste only when replacing the saved token" : "Paste Admin API token"}
-              className={inputClass}
             />
           </Field>
         </>
@@ -432,25 +445,23 @@ function ConnectionFormFields({
             <input name="shopifyShopDomain" type="hidden" value={connection.shopifyShopDomain} />
           ) : null}
           <Field label="Klaviyo account label">
-            <input
+            <TextControl
               name="klaviyoAccountLabel"
               required
               defaultValue={connection?.klaviyoAccountLabel || connection?.name || ""}
               placeholder="US Klaviyo"
-              className={inputClass}
             />
           </Field>
           <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-800">
-            The conversion metric ID is detected automatically from Klaviyo after save. Make sure the
-            private key includes metrics:read.
+            The conversion metric ID is detected automatically from Klaviyo after save when the private
+            key includes metrics:read. The key is still saved for campaign and flow sync if that lookup is blocked.
           </div>
           <Field label="Klaviyo private key" className="md:col-span-2">
-            <input
+            <TextControl
               name="klaviyoPrivateKey"
               type="password"
               required={!hasExistingCredential}
               placeholder={hasExistingCredential ? "Paste only when replacing the saved key" : "Paste private API key"}
-              className={inputClass}
             />
           </Field>
         </>
@@ -481,16 +492,16 @@ function GuidedConnectionModal({
   const isFinalStep = stepIndex === steps.length - 1;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm">
       <div
         aria-modal="true"
         role="dialog"
         aria-labelledby="platform-connection-title"
-        className="max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-lg bg-white shadow-xl"
+        className="max-h-[92vh] w-full max-w-3xl overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-950/15"
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
           <div className="flex min-w-0 gap-3">
-            <div className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-teal-50 text-teal-700">
+            <div className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
               <PlatformIcon provider={modal.provider} />
             </div>
             <div>
@@ -503,7 +514,11 @@ function GuidedConnectionModal({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900"
+            className={buttonClassName({
+              variant: "ghost",
+              size: "sm",
+              className: "h-9 w-9 shrink-0 px-0",
+            })}
             aria-label="Close connection guide"
           >
             <X aria-hidden="true" className="h-4 w-4" />
@@ -529,8 +544,8 @@ function GuidedConnectionModal({
             ))}
           </div>
 
-          <div className="rounded-lg border border-slate-200 p-4">
-            <p className="text-xs font-semibold uppercase tracking-normal text-teal-700">
+          <div className="rounded-lg border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-xs font-semibold text-teal-700">
               Step {stepIndex + 1} of {steps.length}
             </p>
             <h3 className="mt-2 text-base font-semibold text-slate-950">{step.title}</h3>
@@ -558,7 +573,7 @@ function GuidedConnectionModal({
             <button
               type="button"
               onClick={() => (stepIndex === 0 ? onClose() : onStepChange(stepIndex - 1))}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className={buttonClassName({ variant: "secondary", size: "md" })}
             >
               <ChevronLeft aria-hidden="true" className="h-4 w-4" />
               {stepIndex === 0 ? "Close" : "Back"}
@@ -567,7 +582,7 @@ function GuidedConnectionModal({
             {isFinalStep ? (
               <button
                 type="submit"
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                className={buttonClassName({ variant: "primary", size: "md" })}
               >
                 <KeyRound aria-hidden="true" className="h-4 w-4" />
                 {copy.buttonLabel}
@@ -576,7 +591,7 @@ function GuidedConnectionModal({
               <button
                 type="button"
                 onClick={() => onStepChange(stepIndex + 1)}
-                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                className={buttonClassName({ variant: "primary", size: "md" })}
               >
                 Next
                 <ChevronRight aria-hidden="true" className="h-4 w-4" />
@@ -605,7 +620,7 @@ export function PlatformConnectionManager({
   return (
     <>
       <section className="px-4 lg:px-6">
-        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Connect a platform</h2>
@@ -618,7 +633,7 @@ export function PlatformConnectionManager({
               <button
                 type="button"
                 onClick={() => openModal("shopify")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-slate-950 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                className={buttonClassName({ variant: "primary", size: "lg", className: "w-full" })}
               >
                 <Plus aria-hidden="true" className="h-4 w-4" />
                 Connect Shopify
@@ -626,7 +641,7 @@ export function PlatformConnectionManager({
               <button
                 type="button"
                 onClick={() => openModal("klaviyo")}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+                className={buttonClassName({ variant: "secondary", size: "lg", className: "w-full" })}
               >
                 <Plus aria-hidden="true" className="h-4 w-4" />
                 Connect Klaviyo
@@ -652,7 +667,7 @@ export function PlatformConnectionManager({
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
+          <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 shadow-sm shadow-slate-200/60">
             No regions are configured yet. Use Connect Shopify or Connect Klaviyo to add the first region.
           </div>
         )}

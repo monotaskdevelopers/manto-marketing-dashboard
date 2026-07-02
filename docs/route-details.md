@@ -23,8 +23,8 @@ or route handlers are added, removed, renamed, or materially changed.
 
 | Route | Purpose | How it works | Importance |
 | --- | --- | --- | --- |
-| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`. | Critical |
-| `/api/sync` | Manual sync | Authenticated user triggers a bounded sync job. | High |
+| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; each active connected platform syncs independently. | Critical |
+| `/api/sync` | Manual sync | Authenticated user triggers a bounded sync job for Shopify-only, Klaviyo-only, or combined connections. | High |
 | `/api/sync/status` | Sync status | Authenticated user reads latest sanitized sync metadata. | Medium |
 
 ## Route Rules

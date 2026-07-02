@@ -59,6 +59,19 @@ function sanitizeError(error: unknown) {
     .slice(0, 900);
 }
 
+function hasShopifyCredentials(region: RegionIntegrationConfig): region is RegionIntegrationConfig & {
+  shopifyShopDomain: string;
+  shopifyAdminAccessToken: string;
+} {
+  return Boolean(region.shopifyShopDomain && region.shopifyAdminAccessToken);
+}
+
+function hasKlaviyoCredentials(region: RegionIntegrationConfig): region is RegionIntegrationConfig & {
+  klaviyoPrivateKey: string;
+} {
+  return Boolean(region.klaviyoPrivateKey);
+}
+
 function aggregateKlaviyoDaily(params: {
   region: RegionIntegrationConfig;
   campaigns: KlaviyoCampaignSyncRow[];
@@ -192,7 +205,7 @@ async function upsertRegions(configs: RegionIntegrationConfig[]) {
     name: region.name,
     currency_code: region.currencyCode,
     timezone: region.timezone,
-    shopify_shop_domain: region.shopifyShopDomain,
+    shopify_shop_domain: region.shopifyShopDomain || null,
     klaviyo_account_label: region.klaviyoAccountLabel || region.name,
     is_active: true,
     updated_at: now,
@@ -213,98 +226,132 @@ async function syncRegion(params: {
   regionId: string;
   startDate: string;
   endDate: string;
-}) {
+}): Promise<{ status: "success" | "partial"; errors: string[] }> {
   const admin = getSupabaseAdmin();
   const now = new Date().toISOString();
 
   console.info(`[sync] Region ${params.region.slug} started for run ${params.syncRunId}.`);
 
-  const shopifyRows = await fetchShopifyDailyMetrics({
-    region: params.region,
-    startDate: params.startDate,
-    endDate: params.endDate,
-  });
+  const syncedPlatforms: string[] = [];
+  const platformErrors: string[] = [];
 
-  if (shopifyRows.length) {
-    const { error } = await admin.from("shopify_daily_metrics").upsert(
-      shopifyRows.map((row) => ({
-        ...row,
-        region_id: params.regionId,
-        updated_at: now,
-      })),
-      { onConflict: "region_id,metric_date" },
-    );
+  // Each platform is optional; a Klaviyo-only connection should not fail because Shopify is absent.
+  if (hasShopifyCredentials(params.region)) {
+    try {
+      const shopifyRows = await fetchShopifyDailyMetrics({
+        region: params.region,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
 
-    if (error) {
-      throw new Error(`Unable to write Shopify rows for region ${params.region.slug}.`);
+      if (shopifyRows.length) {
+        const { error } = await admin.from("shopify_daily_metrics").upsert(
+          shopifyRows.map((row) => ({
+            ...row,
+            region_id: params.regionId,
+            updated_at: now,
+          })),
+          { onConflict: "region_id,metric_date" },
+        );
+
+        if (error) {
+          throw new Error(`Unable to write Shopify rows for region ${params.region.slug}.`);
+        }
+      }
+
+      syncedPlatforms.push("Shopify");
+    } catch (error) {
+      platformErrors.push(`Shopify: ${sanitizeError(error)}`);
+      console.warn(`[sync] Shopify failed for region ${params.region.slug} in run ${params.syncRunId}.`);
     }
   }
 
-  const [campaignRows, flowRows] = await Promise.all([
-    fetchKlaviyoCampaignReports({
-      region: params.region,
-      startDate: params.startDate,
-      endDate: params.endDate,
-    }),
-    fetchKlaviyoFlowReports({
-      region: params.region,
-      startDate: params.startDate,
-      endDate: params.endDate,
-    }),
-  ]);
+  if (hasKlaviyoCredentials(params.region)) {
+    try {
+      const [campaignRows, flowRows] = await Promise.all([
+        fetchKlaviyoCampaignReports({
+          region: params.region,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        }),
+        fetchKlaviyoFlowReports({
+          region: params.region,
+          startDate: params.startDate,
+          endDate: params.endDate,
+        }),
+      ]);
 
-  if (campaignRows.length) {
-    const { error } = await admin.from("klaviyo_campaign_reports").upsert(
-      campaignRows.map((row) => ({
-        ...row,
-        region_id: params.regionId,
-        updated_at: now,
-      })),
-      { onConflict: "region_id,campaign_id,send_date" },
-    );
+      if (campaignRows.length) {
+        const { error } = await admin.from("klaviyo_campaign_reports").upsert(
+          campaignRows.map((row) => ({
+            ...row,
+            region_id: params.regionId,
+            updated_at: now,
+          })),
+          { onConflict: "region_id,campaign_id,send_date" },
+        );
 
-    if (error) {
-      throw new Error(`Unable to write campaign rows for region ${params.region.slug}.`);
+        if (error) {
+          throw new Error(`Unable to write campaign rows for region ${params.region.slug}.`);
+        }
+      }
+
+      if (flowRows.length) {
+        const { error } = await admin.from("klaviyo_flow_reports").upsert(
+          flowRows.map((row) => ({
+            ...row,
+            region_id: params.regionId,
+            updated_at: now,
+          })),
+          { onConflict: "region_id,flow_id,metric_date" },
+        );
+
+        if (error) {
+          throw new Error(`Unable to write flow rows for region ${params.region.slug}.`);
+        }
+      }
+
+      const dailyRows = aggregateKlaviyoDaily({
+        region: params.region,
+        campaigns: campaignRows,
+        flows: flowRows,
+      });
+
+      if (dailyRows.length) {
+        const { error } = await admin.from("klaviyo_daily_metrics").upsert(
+          dailyRows.map((row) => ({
+            ...row,
+            region_id: params.regionId,
+            updated_at: now,
+          })),
+          { onConflict: "region_id,metric_date" },
+        );
+
+        if (error) {
+          throw new Error(`Unable to write Klaviyo daily rows for region ${params.region.slug}.`);
+        }
+      }
+
+      syncedPlatforms.push("Klaviyo");
+    } catch (error) {
+      platformErrors.push(`Klaviyo: ${sanitizeError(error)}`);
+      console.warn(`[sync] Klaviyo failed for region ${params.region.slug} in run ${params.syncRunId}.`);
     }
   }
 
-  if (flowRows.length) {
-    const { error } = await admin.from("klaviyo_flow_reports").upsert(
-      flowRows.map((row) => ({
-        ...row,
-        region_id: params.regionId,
-        updated_at: now,
-      })),
-      { onConflict: "region_id,flow_id,metric_date" },
-    );
-
-    if (error) {
-      throw new Error(`Unable to write flow rows for region ${params.region.slug}.`);
-    }
+  if (!syncedPlatforms.length) {
+    const details = platformErrors.length ? ` ${platformErrors.join("; ")}` : "";
+    throw new Error(`No connected platforms synced for region ${params.region.slug}.${details}`);
   }
 
-  const dailyRows = aggregateKlaviyoDaily({
-    region: params.region,
-    campaigns: campaignRows,
-    flows: flowRows,
-  });
+  console.info(
+    `[sync] Region ${params.region.slug} completed for run ${params.syncRunId} (${syncedPlatforms.join(", ")}).`,
+  );
 
-  if (dailyRows.length) {
-    const { error } = await admin.from("klaviyo_daily_metrics").upsert(
-      dailyRows.map((row) => ({
-        ...row,
-        region_id: params.regionId,
-        updated_at: now,
-      })),
-      { onConflict: "region_id,metric_date" },
-    );
-
-    if (error) {
-      throw new Error(`Unable to write Klaviyo daily rows for region ${params.region.slug}.`);
-    }
-  }
-
-  console.info(`[sync] Region ${params.region.slug} completed for run ${params.syncRunId}.`);
+  return {
+    status: platformErrors.length ? "partial" : "success",
+    errors: platformErrors,
+  };
 }
 
 export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
@@ -322,7 +369,7 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
     return {
       syncRunId: "not-started",
       status: "failed",
-      message: "No active regions have both Shopify and Klaviyo connected.",
+      message: "No active regions have encrypted Shopify or Klaviyo credentials saved. Reconnect a platform from Settings.",
     };
   }
 
@@ -339,6 +386,7 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
   const syncRunId = await createSyncRun(options.triggeredBy, configs.length, options.userId);
   const { startDate, endDate } = getSyncWindow(options.rangeDays);
   let failedRegions = 0;
+  let partialRegions = 0;
   const errors: string[] = [];
 
   console.info(`[sync] Run ${syncRunId} started by ${options.triggeredBy}.`);
@@ -356,13 +404,19 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
       }
 
       try {
-        await syncRegion({
+        const regionResult = await syncRegion({
           syncRunId,
           region,
           regionId,
           startDate,
           endDate,
         });
+
+        if (regionResult.status === "partial") {
+          partialRegions += 1;
+          errors.push(`${region.slug}: ${regionResult.errors.join("; ")}`);
+          console.warn(`[sync] Region ${region.slug} partially failed for run ${syncRunId}.`);
+        }
       } catch (error) {
         failedRegions += 1;
         errors.push(`${region.slug}: ${sanitizeError(error)}`);
@@ -371,11 +425,15 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
     }
 
     const status: SyncStatus =
-      failedRegions === 0 ? "success" : failedRegions === configs.length ? "failed" : "partial";
+      failedRegions === 0 && partialRegions === 0
+        ? "success"
+        : failedRegions === configs.length
+          ? "failed"
+          : "partial";
     const message =
       status === "success"
         ? `Sync completed for ${configs.length} regions.`
-        : `Sync completed with ${failedRegions} failed region(s).`;
+        : `Sync completed with ${failedRegions} failed region(s) and ${partialRegions} partial region(s).`;
 
     await finishSyncRun({
       syncRunId,

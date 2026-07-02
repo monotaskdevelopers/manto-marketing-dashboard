@@ -9,6 +9,7 @@ sync request finishes. It keeps user feedback local to the button without exposi
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PillButton } from "@/components/ui-controls";
 
 export function SyncButton() {
   const router = useRouter();
@@ -39,17 +40,18 @@ export function SyncButton() {
   }
 
   return (
-    <div className="flex flex-col items-start gap-1">
-      <button
+    <div className="flex flex-col items-start gap-1 sm:items-end">
+      <PillButton
         type="button"
         onClick={handleSync}
         disabled={isSyncing}
-        className="inline-flex items-center gap-2 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+        variant="soft"
+        size="md"
       >
         <RefreshCw aria-hidden="true" className={isSyncing ? "h-4 w-4 animate-spin" : "h-4 w-4"} />
         {isSyncing ? "Syncing" : "Sync now"}
-      </button>
-      {message ? <p className="max-w-64 text-xs text-slate-500">{message}</p> : null}
+      </PillButton>
+      {message ? <p className="max-w-72 text-xs leading-5 text-slate-500">{message}</p> : null}
     </div>
   );
 }

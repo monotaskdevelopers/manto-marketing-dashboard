@@ -119,4 +119,10 @@ Combined:
 - Which currency should leadership use for cross-region totals?
 - Are Shopify refunds required in the first release?
 - Does the team need CSV exports in the MVP or immediately after?
-- Which Klaviyo conversion metric should be treated as revenue attribution for each account?
+
+## Resolved Product Decisions
+
+- Klaviyo conversion metric IDs are not entered manually. The app detects the best revenue metric
+  from the connected Klaviyo account when a private key is saved.
+- Sync does not require a region to have both platforms connected. Shopify-only and Klaviyo-only
+  connections are valid and should sync the data available from that platform.

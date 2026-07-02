@@ -51,6 +51,7 @@ Next.js and Vercel:
 - The campaign report endpoint requires `campaigns:read`; the flow report endpoint requires `flows:read`.
 - The Metrics API can return metric `id`, `name`, and `integration`; use it to automatically detect the conversion metric ID after a Klaviyo key is saved.
 - Klaviyo's Metrics API requires `metrics:read`, can filter by integration, and returns up to 200 metrics per page.
+- A missing `metrics:read` scope should not block saving a Klaviyo key because campaign and flow sync only need their reporting scopes.
 - New integrations should use the latest stable API revision and track deprecation timelines.
 
 Decision:
@@ -58,7 +59,7 @@ Decision:
 - Use Klaviyo Reporting API for campaign and flow reports.
 - Keep the API revision in one constant so it can be upgraded deliberately.
 - Store normalized daily and item-level reports locally in Supabase so the UI does not repeatedly hit Klaviyo.
-- Do not ask users to paste a conversion metric ID manually; detect it server-side from the connected Klaviyo account.
+- Do not ask users to paste a conversion metric ID manually; detect it server-side from the connected Klaviyo account when `metrics:read` is available.
 
 ### Shopify
 

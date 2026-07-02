@@ -101,9 +101,9 @@ export type RegionIntegrationConfig = {
   name: string;
   currencyCode: string;
   timezone: string;
-  shopifyShopDomain: string;
-  shopifyAdminAccessToken: string;
-  klaviyoPrivateKey: string;
+  shopifyShopDomain?: string;
+  shopifyAdminAccessToken?: string;
+  klaviyoPrivateKey?: string;
   klaviyoAccountLabel?: string;
   klaviyoConversionMetricId?: string;
 };

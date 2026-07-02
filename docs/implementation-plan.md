@@ -96,7 +96,7 @@ If the team needs fresher numbers before the next hourly sync, they can click a 
   - Creates a sync run record.
   - Loads region config.
   - Upserts regions.
-  - Runs Shopify and Klaviyo sync per region.
+  - Runs Shopify and Klaviyo sync independently per region based on which credentials are connected.
   - Records success, partial success, or failure.
   - Keeps console logs non-PII and sync-focused.
 

@@ -25,14 +25,14 @@ export default async function LoginPage({
     : resolvedSearchParams.error;
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-12">
-      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-lg shadow-slate-200/70">
         <div>
-          <p className="text-sm font-semibold uppercase text-teal-700">Internal reporting</p>
+          <p className="text-sm font-semibold text-teal-700">Internal reporting</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-normal text-slate-950">
             Sign in to Marketing Reports
           </h1>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm leading-6 text-slate-500">
             Access is limited to internal users configured in Supabase Auth.
           </p>
         </div>

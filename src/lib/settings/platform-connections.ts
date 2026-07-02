@@ -166,7 +166,7 @@ export async function listPlatformConnectionSummaries(): Promise<PlatformConnect
       currencyCode: region.currencyCode,
       timezone: region.timezone,
       isActive: true,
-      shopifyShopDomain: region.shopifyShopDomain,
+      shopifyShopDomain: region.shopifyShopDomain || null,
       shopifyConnected: true,
       shopifyConnectedAt: new Date().toISOString(),
       shopifyDisconnectedAt: null,
@@ -228,13 +228,22 @@ export async function savePlatformConnection(input: SavePlatformConnectionInput)
     throw new Error("Shopify shop domain is required for Shopify connections.");
   }
 
-  const detectedKlaviyoConversionMetricId =
-    klaviyoPrivateKey && provider !== "shopify"
-      ? await fetchPreferredKlaviyoConversionMetricId({
-          privateKey: klaviyoPrivateKey,
-          regionSlug: slug,
-        })
-      : undefined;
+  let detectedKlaviyoConversionMetricId: string | null | undefined;
+
+  if (klaviyoPrivateKey && provider !== "shopify") {
+    try {
+      detectedKlaviyoConversionMetricId = await fetchPreferredKlaviyoConversionMetricId({
+        privateKey: klaviyoPrivateKey,
+        regionSlug: slug,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown metric lookup error.";
+
+      // Metric lookup improves revenue attribution, but it should not block saving a usable Klaviyo key.
+      console.warn(`[settings:klaviyo] Conversion metric auto-detection skipped for region ${slug}: ${message}`);
+      detectedKlaviyoConversionMetricId = null;
+    }
+  }
 
   const regionPayload: Record<string, string | boolean | null> = {
     slug,
@@ -298,7 +307,7 @@ export async function savePlatformConnection(input: SavePlatformConnectionInput)
   }
 
   if (provider !== "shopify" && klaviyoPrivateKey) {
-    payload.klaviyo_conversion_metric_id = detectedKlaviyoConversionMetricId;
+    payload.klaviyo_conversion_metric_id = detectedKlaviyoConversionMetricId ?? null;
   }
 
   if (!existingConnection) {
@@ -406,13 +415,7 @@ export async function getActiveRegionConnectionConfigs(): Promise<RegionIntegrat
   const [{ data: regions, error: regionsError }, { data: connections, error: connectionsError }] =
     await Promise.all([
       admin.from("regions").select("*").eq("is_active", true),
-      admin
-        .from("platform_connections")
-        .select("*")
-        .not("shopify_admin_token_ciphertext", "is", null)
-        .not("klaviyo_private_key_ciphertext", "is", null)
-        .is("shopify_disconnected_at", null)
-        .is("klaviyo_disconnected_at", null),
+      admin.from("platform_connections").select("*"),
     ]);
 
   if (regionsError || connectionsError) {
@@ -421,26 +424,47 @@ export async function getActiveRegionConnectionConfigs(): Promise<RegionIntegrat
 
   const regionById = new Map(((regions || []) as RegionDbRow[]).map((region) => [region.id, region]));
 
-  return ((connections || []) as PlatformConnectionDbRow[]).flatMap((connection) => {
+  const configs = ((connections || []) as PlatformConnectionDbRow[]).flatMap((connection) => {
     const region = regionById.get(connection.region_id);
+    const shopDomain = connection.shopify_shop_domain || region?.shopify_shop_domain || undefined;
+    const hasShopifyConnection = Boolean(
+      region && shopDomain && connection.shopify_admin_token_ciphertext && !connection.shopify_disconnected_at,
+    );
+    const hasKlaviyoConnection = Boolean(
+      region && connection.klaviyo_private_key_ciphertext && !connection.klaviyo_disconnected_at,
+    );
 
-    if (!region || !connection.shopify_admin_token_ciphertext || !connection.klaviyo_private_key_ciphertext) {
+    if (!region || (!hasShopifyConnection && !hasKlaviyoConnection)) {
       return [];
     }
 
     // Decryption stays inside this server-only boundary; callers receive only the config needed for sync.
-    return [
-      {
-        slug: region.slug,
-        name: region.name,
-        currencyCode: region.currency_code,
-        timezone: region.timezone,
-        shopifyShopDomain: connection.shopify_shop_domain || region.shopify_shop_domain || "",
-        shopifyAdminAccessToken: decryptSecret(connection.shopify_admin_token_ciphertext),
-        klaviyoPrivateKey: decryptSecret(connection.klaviyo_private_key_ciphertext),
-        klaviyoAccountLabel: connection.klaviyo_account_label || region.klaviyo_account_label || region.name,
-        klaviyoConversionMetricId: connection.klaviyo_conversion_metric_id || undefined,
-      },
-    ];
+    const config: RegionIntegrationConfig = {
+      slug: region.slug,
+      name: region.name,
+      currencyCode: region.currency_code,
+      timezone: region.timezone,
+      shopifyShopDomain: shopDomain,
+      klaviyoAccountLabel: connection.klaviyo_account_label || region.klaviyo_account_label || region.name,
+      klaviyoConversionMetricId: connection.klaviyo_conversion_metric_id || undefined,
+    };
+
+    if (hasShopifyConnection && connection.shopify_admin_token_ciphertext) {
+      config.shopifyAdminAccessToken = decryptSecret(connection.shopify_admin_token_ciphertext);
+    }
+
+    if (hasKlaviyoConnection && connection.klaviyo_private_key_ciphertext) {
+      config.klaviyoPrivateKey = decryptSecret(connection.klaviyo_private_key_ciphertext);
+    }
+
+    return [config];
   });
+
+  console.info(
+    `[sync:connections] Loaded ${configs.length} syncable region(s) from ${regionById.size} active region(s) and ${
+      (connections || []).length
+    } connection row(s).`,
+  );
+
+  return configs;
 }

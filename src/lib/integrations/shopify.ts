@@ -9,6 +9,11 @@ import "server-only";
 import { getShopifyApiVersion } from "@/lib/env";
 import type { RegionIntegrationConfig } from "@/lib/types";
 
+type ShopifyRegionConfig = RegionIntegrationConfig & {
+  shopifyShopDomain: string;
+  shopifyAdminAccessToken: string;
+};
+
 export type ShopifyDailySyncRow = {
   metric_date: string;
   revenue_amount: number;
@@ -114,7 +119,7 @@ async function wait(ms: number) {
 }
 
 async function fetchOrdersPage(params: {
-  region: RegionIntegrationConfig;
+  region: ShopifyRegionConfig;
   query: string;
   after: string | null;
 }) {
@@ -157,7 +162,7 @@ async function fetchOrdersPage(params: {
 }
 
 export async function fetchShopifyDailyMetrics(params: {
-  region: RegionIntegrationConfig;
+  region: ShopifyRegionConfig;
   startDate: string;
   endDate: string;
 }): Promise<ShopifyDailySyncRow[]> {

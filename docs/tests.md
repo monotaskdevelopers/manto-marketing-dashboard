@@ -30,9 +30,9 @@ behavior.
 - Verify the Klaviyo connect button opens the Klaviyo step-by-step modal.
 - Verify provider-specific save forms do not require the other provider's credential.
 - Verify timezone is selected from a dropdown in both provider modals.
-- Verify the Klaviyo modal explains that conversion metric ID detection is automatic and requires `metrics:read`.
+- Verify the Klaviyo modal explains that conversion metric ID detection is automatic when `metrics:read` is granted, but key storage still works for campaign and flow sync if metric lookup is blocked.
 - Verify disconnect nulls encrypted secret columns.
-- Verify sync ignores inactive or incomplete platform connections.
+- Verify sync ignores inactive regions and still runs Shopify-only, Klaviyo-only, and combined connected regions.
 
 ## Verification Completed
 
@@ -43,7 +43,9 @@ behavior.
 | Browser overview check | Passed | Confirmed dashboard content, sync button, no runtime overlay, and no console errors. |
 | Browser campaigns check | Passed | Confirmed campaign report page renders without a runtime overlay or console errors. |
 | Browser mobile check | Passed | Confirmed 390px viewport has no page-level horizontal overflow; wide tables scroll inside their own containers. |
-| Browser settings provider modal check | Passed | Confirmed separate Shopify and Klaviyo guided modals open, final forms stay provider-specific, and no browser console errors appear. |
+| Browser settings provider modal check | Passed | Confirmed separate Shopify and Klaviyo guided modals open, final forms stay provider-specific, timezone uses a dropdown, Klaviyo has no manual conversion metric ID field, and no browser console errors appear. |
+| Independent platform sync gate check | Passed | Code path now loads active Shopify-only, Klaviyo-only, and combined connections; sync runner calls only connected platform clients and reports partial success if one platform fails while another syncs. Verified with lint and focused code review, not a live platform sync. |
+| Current typecheck after Klaviyo save resilience update | Blocked | `npm run typecheck` now fails on dashboard page `MetricCard` and `DataTable` prop contract mismatches outside the sync/connection files. |
 | `GET /api/cron/hourly-sync` without secret | Passed | Returned `401 Unauthorized` with a sanitized JSON error. |
 | `GET /api/sync/status` in local demo mode | Passed | Returned sanitized demo sync metadata because `DEMO_MODE=true` locally. |
 | Production build | Not run | Project instruction forbids build tests unless explicitly requested. |

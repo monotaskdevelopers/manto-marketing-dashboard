@@ -13,7 +13,7 @@ as the application grows.
 
 Purpose:
 
-- Runs the hourly Shopify and Klaviyo sync.
+- Runs hourly sync for every active region with a connected Shopify and/or Klaviyo account.
 
 Authentication:
 
@@ -122,7 +122,7 @@ Security notes:
 
 Purpose:
 
-- Fetch orders per region and date window.
+- Fetch orders for regions with a connected Shopify account.
 
 Credential:
 
@@ -139,7 +139,7 @@ Important safeguards:
 
 Purpose:
 
-- Fetch campaign and flow performance per region and date window.
+- Fetch campaign and flow performance for regions with a connected Klaviyo account.
 
 Credential:
 

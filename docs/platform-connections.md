@@ -20,13 +20,13 @@ The flow is:
 
 1. Internal user opens `/settings`.
 2. User follows the on-page Shopify and Klaviyo setup guides.
-3. User enters the region details, Shopify shop domain, Shopify Admin API token, and Klaviyo private key.
+3. User enters the region details and the credentials for whichever platform is being connected.
 4. A server action validates the authenticated user.
 5. When a Klaviyo key is saved, the server calls Klaviyo's Metrics API and stores the best detected conversion metric ID.
 6. The server encrypts the Shopify and Klaviyo secrets with `APP_ENCRYPTION_KEY`.
 7. The encrypted secrets and non-secret connection metadata are saved to Supabase.
 8. Hourly cron and manual sync load active connections from Supabase.
-9. Sync decrypts secrets only on the server, calls Shopify/Klaviyo, and writes normalized reporting rows.
+9. Sync decrypts secrets only on the server, calls each connected platform independently, and writes normalized reporting rows.
 10. Users can disconnect Shopify or Klaviyo from `/settings`; disconnect removes the encrypted secret from the database.
 
 ## Architecture Decision
@@ -205,14 +205,18 @@ Credential needed:
 
 - Klaviyo private API key.
 
-Required current scopes:
+Required current scopes for campaign and flow sync:
 
 - `campaigns:read`
 - `flows:read`
+
+Recommended scope for automatic revenue metric detection:
+
 - `metrics:read`
 
-`metrics:read` is required because the app automatically detects the best conversion metric ID through
-Klaviyo's Metrics API after the private key is saved.
+`metrics:read` lets the app automatically detect the best conversion metric ID through Klaviyo's Metrics
+API after the private key is saved. If Klaviyo denies metric lookup, the app still stores the encrypted
+private key so campaign and flow sync can run.
 
 Steps:
 
@@ -220,15 +224,17 @@ Steps:
 2. Go to account API key settings.
 3. Create a private API key.
 4. Use read-only or custom scopes.
-5. Include `campaigns:read`, `flows:read`, and `metrics:read`.
+5. Include `campaigns:read` and `flows:read`; include `metrics:read` when possible for automatic conversion metric detection.
 6. Copy the private key immediately.
 7. Click `Connect Klaviyo` or `Update Klaviyo` in `/settings`.
 8. Follow the multi-step Klaviyo popup guide.
 9. Paste the private key into the Klaviyo form.
 10. Save the connection.
-11. The server calls Klaviyo's Metrics API with `fields[metric]=id,name,integration`.
-12. The server prefers revenue metrics such as `Placed Order` or `Ordered Product`.
-13. Run a manual sync to confirm reports return data.
+11. The server stores the encrypted private key before sync ever runs.
+12. The server tries Klaviyo's Metrics API with `fields[metric]=id,name,integration`.
+13. The server prefers revenue metrics such as `Placed Order` or `Ordered Product`.
+14. If metric lookup is denied, reconnect later with `metrics:read`; campaign and flow sync can still run.
+15. Run a manual sync to confirm reports return data.
 
 The app sends Klaviyo requests with:
 
@@ -266,11 +272,13 @@ Deactivating a region should:
 Sync should only run a region when:
 
 - `regions.is_active=true`.
-- Shopify has an encrypted token.
-- Klaviyo has an encrypted private key.
-- Neither Shopify nor Klaviyo is marked disconnected.
+- At least one platform has a connected encrypted credential.
+- Shopify sync runs when Shopify has a shop domain, encrypted token, and no Shopify disconnect timestamp.
+- Klaviyo sync runs when Klaviyo has an encrypted private key and no Klaviyo disconnect timestamp.
 
-If no complete active connections exist, sync should fail gracefully with a clear sanitized message.
+If no active regions have at least one connected platform, sync should fail gracefully with a clear sanitized
+message that asks the user to reconnect a platform from Settings. A Klaviyo-only connection should still
+sync Klaviyo reports, and a Shopify-only connection should still sync Shopify daily metrics.
 
 ## Troubleshooting
 
@@ -289,10 +297,10 @@ Check:
 Check:
 
 - Region is active.
-- Shopify is connected.
-- Klaviyo is connected.
-- The encrypted secret columns are not null.
-- Disconnect timestamps are null for both platforms.
+- At least one platform is connected.
+- For Shopify sync, `shopify_admin_token_ciphertext` is not null, a shop domain is present, and `shopify_disconnected_at` is null.
+- For Klaviyo sync, `klaviyo_private_key_ciphertext` is not null and `klaviyo_disconnected_at` is null.
+- The region has not been deactivated.
 
 ### Shopify Sync Fails
 
@@ -309,10 +317,10 @@ Check:
 Check:
 
 - Private key belongs to the correct account.
-- Key has `campaigns:read`, `flows:read`, and `metrics:read`.
+- Key has `campaigns:read` and `flows:read`; add `metrics:read` if conversion metric detection is missing.
 - `KLAVIYO_REVISION` is supported.
 - The account has campaign or flow data in the selected date range.
-- The Settings save step detected a conversion metric; reconnect Klaviyo if the metric was missing or stale.
+- The Settings save step stored an encrypted Klaviyo key in `platform_connections`; reconnect Klaviyo if only the region label exists.
 
 ## Security Rules
 

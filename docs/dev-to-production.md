@@ -67,7 +67,7 @@ For the full process, see `/docs/initial-user-setup.md`.
 ## Klaviyo Production Checks
 
 - Create private keys with read-only or custom reporting scopes.
-- Grant `campaigns:read`, `flows:read`, and `metrics:read`; `metrics:read` is used to auto-detect the conversion metric ID during Klaviyo connection.
+- Grant `campaigns:read` and `flows:read`; add `metrics:read` so the app can auto-detect the conversion metric ID during Klaviyo connection.
 - Confirm campaign and flow report endpoints return expected fields for each account.
 - Confirm the API revision is supported.
 - Store private keys only through `/settings`, where they are encrypted before being saved to Supabase.
@@ -88,7 +88,7 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Verify `/settings` loads for authenticated users.
 - Verify a test region can be connected from `/settings`.
 - Verify disconnect removes encrypted Shopify/Klaviyo secrets from `platform_connections`.
-- Verify manual sync works for one region.
+- Verify manual sync works for Shopify-only, Klaviyo-only, and combined test regions.
 - Verify hourly cron sync works in production.
 - Verify no secrets appear in browser bundle, responses, or logs.
 - Verify no demo data appears when `DEMO_MODE=false`.

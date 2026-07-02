@@ -8,13 +8,15 @@ default element behavior used by every page.
 @import "tailwindcss";
 
 :root {
-  --background: #f6f7f9;
-  --foreground: #171717;
+  --background: #f5f7fb;
+  --foreground: #0f172a;
   --panel: #ffffff;
-  --panel-border: #dfe3ea;
-  --muted: #626a76;
+  --panel-border: #dbe2ea;
+  --muted: #64748b;
   --accent: #0f766e;
-  --accent-strong: #115e59;
+  --accent-strong: #134e4a;
+  --warning: #b45309;
+  --danger: #be123c;
 }
 
 * {
@@ -29,7 +31,7 @@ html {
 body {
   min-height: 100%;
   margin: 0;
-  background: var(--background);
+  background: linear-gradient(180deg, #f8fafc 0%, var(--background) 48%, #eef2f7 100%);
   color: var(--foreground);
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -54,4 +56,34 @@ select:focus-visible {
 ::selection {
   background: #99f6e4;
   color: #0f172a;
+}
+
+::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #eef2f7;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border: 2px solid #eef2f7;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
 }
