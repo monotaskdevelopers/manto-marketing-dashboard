@@ -14,16 +14,17 @@ navigation hierarchy.
 ## Contents
 
 - Same Campaigns workspace as `/campaigns`.
-- Email performance summary that recalculates from the client-filtered campaign rows.
-- Campaign filters.
+- Email performance summary with overall generated revenue and currency-aware revenue-per-recipient values that
+  recalculate from the client-filtered campaign rows.
+- Campaign search and filters.
 - Campaign table populated from synced campaign report rows.
 
 ## Features
 
 - Reuses the top-level `/campaigns` page implementation.
 - Preserves the existing nested sidebar destination.
-- Uses the same compact modular date picker, client-side table search/filters/sorting, filter-aware metric cards, campaign/message metadata enrichment, message-type tooltips, and empty states as `/campaigns`.
-- Shows Campaign, Message Type, Status, Send Date, Open Rate, Click Rate, and Placed Order Rev columns without row-selection checkboxes.
+- Uses the same compact modular date picker, client-side table search/filter/sorting, filter-aware metric cards, campaign/message metadata enrichment, message-type tooltips, and empty states as `/campaigns`.
+- Shows Campaign, Region, Message Type, Status, Send Date, Open Rate, Click Rate, and Placed Order Rev columns without row-selection checkboxes.
 
 ## Security Concerns
 
@@ -33,5 +34,5 @@ navigation hierarchy.
 
 ## Known Gaps
 
-- Campaign action buttons and advanced filters are still visual placeholders.
+- View benchmarks and row action controls are still visual placeholders.
 - Campaign message type falls back to safe name-based inference if comprehensive campaign/message metadata has not been synced yet.

@@ -13,12 +13,13 @@ engagement quality, and placed-order revenue.
 
 ## Contents
 
-- Page title and campaign action toolbar.
-- Email performance summary for the last 30 days.
+- Page title.
+- Email performance summary for the selected date range.
+- Overall Revenue Generated, split by currency when the filtered rows include multiple region currencies.
 - Average open rate.
 - Average click rate.
 - Placed Order percentage.
-- Revenue per recipient.
+- Revenue per recipient, split by currency when the filtered rows include multiple region currencies.
 - Campaign table populated from synced `klaviyo_campaign_reports` rows when present, or synced
   `klaviyo_campaigns` metadata rows as the current campaign-ingestion fallback.
 - Campaign name, region, status, send timestamp, channel, audience IDs, tag IDs, tag labels, A/B test metadata, and
@@ -30,14 +31,15 @@ engagement quality, and placed-order revenue.
   and without making another database-backed request.
 - Compact modular date range picker wired to the shared `preset`, `start`, and `end` dashboard filters because date
   changes define the reporting dataset.
-- Region, Audience, Channels, Status, Tags, and Archived filters run client-side against the already-loaded campaign
+- Region, Audience, Channels, Status, and Tags filters run client-side against the already-loaded campaign
   rows and synced metadata from `klaviyo_campaign_audiences`, `klaviyo_tag_relationships`, and `klaviyo_tags`.
-- Email performance summary cards recalculate from the same client-filtered rows as the table so search and filter
-  changes keep the top metrics aligned with visible results.
+- Email performance summary cards include overall generated revenue and recalculate from the same client-filtered
+  rows as the table so search and filter changes keep the top metrics aligned with visible results.
+- Overall Revenue Generated and Revenue per recipient group values by `currency_code` when filtered campaign rows
+  include multiple currencies, avoiding a misleading blended money amount across regions.
 - Open Rate and Click Rate use Klaviyo native fractional rates from synced campaign values reports. Their
   sublabels show unique recipient action counts, matching Klaviyo's campaign list behavior instead of raw
   send recipients or raw event totals.
-- Table display settings button placeholder.
 - Sortable table columns for Campaign, Region, Message Type, Status, Send Date, Open Rate, Click Rate, and
   Placed Order Rev, without row-selection checkboxes.
 - Message Type icons expose hover/focus tooltips so users can distinguish email, SMS/text, and A/B test rows.
@@ -51,7 +53,6 @@ engagement quality, and placed-order revenue.
 
 ## Known Gaps
 
-- Table display controls are visual placeholders.
 - Campaign message type falls back to safe name/channel inference because the active Klaviyo sync does not
   fetch campaign message rows.
-- Create campaign, View library, Calendar, benchmarks, and row action controls are visual placeholders.
+- View benchmarks and row action controls are visual placeholders.

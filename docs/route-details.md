@@ -19,7 +19,7 @@ or route handlers are added, removed, renamed, or materially changed.
 | `/klaviyo` | Klaviyo reporting placeholder | Preserves the protected Klaviyo overview route but renders no page body during the redesign reset. | High |
 | `/klaviyo/campaigns` | Klaviyo campaign workspace | Renders the shared rebuilt Campaigns workspace with synced campaign rows, campaign metadata enrichment, the compact reusable URL-backed date picker, filter-aware metric cards, client-side table search/filters/sorting, and message-type tooltips under the nested Klaviyo navigation hierarchy. | High |
 | `/klaviyo/flows` | Klaviyo flow workspace | Renders the shared rebuilt Flows workspace with synced flow reports and flow metadata enrichment under the nested Klaviyo navigation hierarchy. | High |
-| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with synced campaign rows, a Region column, filter-aware metric cards, client-side search/filter/sort controls over already-loaded rows, campaign metadata enrichment, the compact modular date picker, message-type tooltips, and an empty state when no rows match. | High |
+| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with synced campaign rows, a Region column, filter-aware and currency-aware metric cards, client-side search/filter/sort controls over already-loaded rows, campaign metadata enrichment, the compact modular date picker, message-type tooltips, and an empty state when no rows match. | High |
 | `/flows` | Flow reporting workspace | Renders the rebuilt Klaviyo-style flow workspace with synced flow rows, server-rendered search, flow metadata enrichment, compact controls, and an empty state when no report rows match. | High |
 | `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
 
@@ -49,7 +49,7 @@ or route handlers are added, removed, renamed, or materially changed.
 - Date filters should remain URL query parameters when analytics pages are rebuilt so reporting periods are shareable.
 - Analytics pages are intentionally blank during the UI reset, except Settings and the rebuilt real-data Campaigns and Flows workspaces.
 - Campaigns date range remains URL-driven because it changes the loaded reporting period; Campaigns table search,
-  region, audience, channel, status, tag, archived filters, column sorting, and top metric-card recalculation run
+  region, audience, channel, status, tag filters, column sorting, and top metric-card recalculation run
   client-side against the already-loaded campaign rows.
 - Future analytics table filters should stay inside the table header; use URL-driven controls for dataset-changing
   filters and client-side controls for table-only filtering over rows that are already loaded.

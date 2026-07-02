@@ -144,12 +144,23 @@ export function formatPerformancePercent(value: number) {
 }
 
 export function formatPerformanceCurrency(value: number, currencyCode = "USD") {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number.isFinite(value) ? value : 0);
+  const amount = Number.isFinite(value) ? value : 0;
+  const normalizedCurrencyCode = (currencyCode || "USD").trim().toUpperCase() || "USD";
+
+  try {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: normalizedCurrencyCode,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    // Keep report rendering alive if a region ever stores an unexpected currency code.
+    return `${normalizedCurrencyCode} ${new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount)}`;
+  }
 }
 
 export function formatDateOnlyLabel(value: string) {

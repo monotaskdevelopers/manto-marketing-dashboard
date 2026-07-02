@@ -18,7 +18,6 @@ import {
   MessageSquareText,
   MoreVertical,
   Search,
-  SlidersHorizontal,
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
@@ -35,6 +34,7 @@ import {
   getPerformanceRating,
   summarizeKlaviyoPerformanceRows,
   type KlaviyoPerformanceMetricKey,
+  type KlaviyoPerformanceSummary,
   type PerformanceRating,
 } from "@/lib/marketing-performance";
 import { formatNumber } from "@/lib/format";
@@ -65,10 +65,15 @@ type CampaignSortState = {
   direction: SortDirection;
 };
 
-type CampaignMetricCard = {
+type CampaignMetricDisplayValue = {
   value: string;
+  currencyCode: string | null;
+};
+
+type CampaignMetricCard = {
+  values: CampaignMetricDisplayValue[];
   label: string;
-  rating: PerformanceRating;
+  rating: PerformanceRating | null;
   trend: {
     label: string;
     tone: "up" | "down";
@@ -82,7 +87,6 @@ export type CampaignTableFilters = {
   channel: string;
   audience: string;
   tag: string;
-  archived: string;
 };
 
 type EnrichedCampaignRow = {
@@ -296,8 +300,52 @@ function getConversionRecipientCount(row: RankedCampaign) {
   return row.conversions_unique_count || row.conversions_count;
 }
 
-function getMetricCurrencyCode(rows: RankedCampaign[]) {
-  return rows[0]?.currency_code || "USD";
+function normalizeCurrencyCode(currencyCode: string | null | undefined) {
+  return (currencyCode || "USD").trim().toUpperCase() || "USD";
+}
+
+function buildCurrencyMetricSummaries(rows: RankedCampaign[]) {
+  const rowsByCurrency = new Map<string, RankedCampaign[]>();
+
+  rows.forEach((row) => {
+    const currencyCode = normalizeCurrencyCode(row.currency_code);
+    const currencyRows = rowsByCurrency.get(currencyCode) || [];
+
+    currencyRows.push(row);
+    rowsByCurrency.set(currencyCode, currencyRows);
+  });
+
+  // Empty filtered states still need a stable zero-value benchmark instead of rendering a blank card.
+  if (!rowsByCurrency.size) {
+    return [
+      {
+        currencyCode: "USD",
+        summary: summarizeKlaviyoPerformanceRows([]),
+      },
+    ];
+  }
+
+  return Array.from(rowsByCurrency.entries())
+    .map(([currencyCode, currencyRows]) => ({
+      currencyCode,
+      summary: summarizeKlaviyoPerformanceRows(currencyRows),
+    }))
+    .sort((left, right) => left.currencyCode.localeCompare(right.currencyCode, "en", { sensitivity: "base" }));
+}
+
+function buildCurrencyMetricValues({
+  currencySummaries,
+  metric,
+  showCurrencyCode,
+}: {
+  currencySummaries: Array<{ currencyCode: string; summary: KlaviyoPerformanceSummary }>;
+  metric: "revenue" | "revenuePerRecipient";
+  showCurrencyCode: boolean;
+}): CampaignMetricDisplayValue[] {
+  return currencySummaries.map(({ currencyCode, summary }) => ({
+    value: formatPerformanceCurrency(summary[metric], currencyCode),
+    currencyCode: showCurrencyCode ? currencyCode : null,
+  }));
 }
 
 function buildMetricTrend({
@@ -342,12 +390,24 @@ function buildCampaignMetrics({
   dateSelection: DateRangeSelection;
 }): CampaignMetricCard[] {
   const summary = summarizeKlaviyoPerformanceRows(rows);
-  const currencyCode = getMetricCurrencyCode(rows);
+  const currencySummaries = buildCurrencyMetricSummaries(rows);
+  const hasMultipleCurrencies = currencySummaries.length > 1;
+  const primaryCurrency = currencySummaries[0];
 
-  // These cards use the same filtered campaign rows as the table, so top metrics stay aligned with visible results.
+  // Revenue cards are grouped by currency so totals from different regions never get blended into one amount.
   return [
     {
-      value: formatPerformancePercent(summary.openRate),
+      values: buildCurrencyMetricValues({
+        currencySummaries,
+        metric: "revenue",
+        showCurrencyCode: hasMultipleCurrencies,
+      }),
+      label: "Overall Revenue Generated",
+      rating: null,
+      trend: null,
+    },
+    {
+      values: [{ value: formatPerformancePercent(summary.openRate), currencyCode: null }],
       label: "Average open rate",
       rating: getPerformanceRating("openRate", summary.openRate),
       trend: buildMetricTrend({
@@ -358,7 +418,7 @@ function buildCampaignMetrics({
       }),
     },
     {
-      value: formatPerformancePercent(summary.clickRate),
+      values: [{ value: formatPerformancePercent(summary.clickRate), currencyCode: null }],
       label: "Average click rate",
       rating: getPerformanceRating("clickRate", summary.clickRate),
       trend: buildMetricTrend({
@@ -369,21 +429,29 @@ function buildCampaignMetrics({
       }),
     },
     {
-      value: formatPerformancePercent(summary.conversionRate),
+      values: [{ value: formatPerformancePercent(summary.conversionRate), currencyCode: null }],
       label: "Placed Order",
       rating: getPerformanceRating("conversionRate", summary.conversionRate),
       trend: null,
     },
     {
-      value: formatPerformanceCurrency(summary.revenuePerRecipient, currencyCode),
-      label: "Revenue per recipient",
-      rating: getPerformanceRating("revenuePerRecipient", summary.revenuePerRecipient),
-      trend: buildMetricTrend({
-        rows,
-        dateSelection,
+      values: buildCurrencyMetricValues({
+        currencySummaries,
         metric: "revenuePerRecipient",
-        formatter: (value) => formatPerformanceCurrency(value, currencyCode),
+        showCurrencyCode: hasMultipleCurrencies,
       }),
+      label: "Revenue per recipient",
+      rating: hasMultipleCurrencies
+        ? null
+        : getPerformanceRating("revenuePerRecipient", primaryCurrency.summary.revenuePerRecipient),
+      trend: hasMultipleCurrencies
+        ? null
+        : buildMetricTrend({
+            rows,
+            dateSelection,
+            metric: "revenuePerRecipient",
+            formatter: (value) => formatPerformanceCurrency(value, primaryCurrency.currencyCode),
+          }),
     },
   ];
 }
@@ -530,14 +598,6 @@ function filterCampaignRows(rows: EnrichedCampaignRow[], filters: CampaignTableF
       return false;
     }
 
-    if (filters.archived === "archived" && row.metadata?.archived !== true) {
-      return false;
-    }
-
-    if (filters.archived === "active" && row.metadata?.archived === true) {
-      return false;
-    }
-
     return true;
   });
 }
@@ -595,18 +655,6 @@ function sortCampaignRows(rows: EnrichedCampaignRow[], sortState: CampaignSortSt
 
 function getInitialSortDirection(sortKey: CampaignSortKey): SortDirection {
   return ["sendDate", "openRate", "clickRate", "revenue"].includes(sortKey) ? "desc" : "asc";
-}
-
-function hasActiveCampaignFilters(filters: CampaignTableFilters) {
-  return Boolean(
-    filters.query.trim() ||
-    filters.region !== "all" ||
-    filters.status !== "all" ||
-    filters.channel !== "all" ||
-    filters.audience !== "all" ||
-    filters.tag !== "all" ||
-    filters.archived !== "all",
-  );
 }
 
 function FilterSelect({
@@ -813,6 +861,40 @@ function TrendPill({
   );
 }
 
+function MetricValueDisplay({
+  values,
+  trend,
+}: {
+  values: CampaignMetricDisplayValue[];
+  trend: CampaignMetricCard["trend"];
+}) {
+  const hasCurrencyBreakdown = values.length > 1;
+
+  return (
+    <div className={clsx("flex min-w-0 gap-3", hasCurrencyBreakdown ? "flex-col items-start" : "items-center")}>
+      <div className={clsx("flex min-w-0", hasCurrencyBreakdown ? "flex-col gap-1.5" : "items-center")}>
+        {values.map((item) => (
+          <p
+            key={`${item.currencyCode || "single"}-${item.value}`}
+            className={clsx(
+              "min-w-0 break-words font-semibold leading-tight tracking-normal text-[#202328]",
+              hasCurrencyBreakdown ? "text-[24px]" : "text-[32px]",
+            )}
+          >
+            {item.value}
+            {item.currencyCode ? (
+              <span className="ml-2 align-middle text-xs font-semibold uppercase tracking-normal text-[#62666d]">
+                {item.currencyCode}
+              </span>
+            ) : null}
+          </p>
+        ))}
+      </div>
+      {trend ? <TrendPill tone={trend.tone}>{trend.label}</TrendPill> : null}
+    </div>
+  );
+}
+
 export function CampaignTable({
   rows,
   regions,
@@ -854,7 +936,6 @@ export function CampaignTable({
     [dateSelection, filteredMetricRows],
   );
   const visibleRows = useMemo(() => sortCampaignRows(filteredRows, sortState), [filteredRows, sortState]);
-  const hasActiveFilters = hasActiveCampaignFilters(filters);
   const normalizedDateRangeLabel = dateRangeLabel || "Selected period";
 
   function updateFilter<Key extends keyof CampaignTableFilters>(key: Key, value: CampaignTableFilters[Key]) {
@@ -862,18 +943,6 @@ export function CampaignTable({
       ...currentFilters,
       [key]: value,
     }));
-  }
-
-  function resetFilters() {
-    setFilters({
-      query: "",
-      region: "all",
-      audience: "all",
-      channel: "all",
-      status: "all",
-      tag: "all",
-      archived: "all",
-    });
   }
 
   function updateSort(nextSortKey: CampaignSortKey) {
@@ -906,21 +975,18 @@ export function CampaignTable({
           </button>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-5">
           {performanceMetrics.map((metric) => (
             <article key={metric.label} className="min-h-[126px]">
-              <div className="flex items-center gap-3">
-                <p className="text-[36px] font-semibold leading-none tracking-normal text-[#202328]">
-                  {metric.value}
-                </p>
-                {metric.trend ? <TrendPill tone={metric.trend.tone}>{metric.trend.label}</TrendPill> : null}
-              </div>
+              <MetricValueDisplay values={metric.values} trend={metric.trend} />
               <p className="mt-2 text-base font-semibold text-[#2e3136]">{metric.label}</p>
-              <div className="mt-3">
-                <RatingPill tone={metric.rating.tone === "good" ? "blue" : "yellow"}>
-                  {metric.rating.label}
-                </RatingPill>
-              </div>
+              {metric.rating ? (
+                <div className="mt-3">
+                  <RatingPill tone={metric.rating.tone === "good" ? "blue" : "yellow"}>
+                    {metric.rating.label}
+                  </RatingPill>
+                </div>
+              ) : null}
             </article>
           ))}
         </div>
@@ -993,37 +1059,17 @@ export function CampaignTable({
               dotted
               wide
             />
-            <FilterSelect
-              ariaLabel="Filter archived campaigns"
-              value={filters.archived}
-              options={[
-                { value: "all", label: "Archived: All" },
-                { value: "active", label: "Active only" },
-                { value: "archived", label: "Archived only" },
-              ]}
-              onChange={(value) => updateFilter("archived", value)}
-              dotted
-            />
           </div>
 
-        <div className="flex items-center gap-2 self-start xl:self-end">
-          <p className="whitespace-nowrap text-sm font-medium text-[#666b72]" aria-live="polite">
-            {visibleRows.length} of {rows.length}
-          </p>
-          <button
-            type="button"
-            aria-label={hasActiveFilters ? "Reset campaign table filters" : "Campaign table filters"}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] text-[#2e3136] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:text-[#a4a9b1]"
-            disabled={!hasActiveFilters}
-            onClick={resetFilters}
-          >
-            <SlidersHorizontal aria-hidden="true" className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2 self-start xl:self-end">
+            <p className="whitespace-nowrap text-sm font-medium text-[#666b72]" aria-live="polite">
+              {visibleRows.length} of {rows.length}
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-[1180px] w-full border-collapse text-left">
+        <div className="overflow-x-auto">
+          <table className="min-w-[1180px] w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-[#ebedf0] text-sm font-medium text-[#62666d]">
               <SortableHeader label="Campaign" sortKey="campaign" sortState={sortState} onSort={updateSort} />
