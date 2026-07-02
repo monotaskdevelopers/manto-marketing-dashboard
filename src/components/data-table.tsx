@@ -1,8 +1,8 @@
 /*
 File description:
-This reusable table component gives report pages a consistent table shell, empty state, and responsive
-overflow behavior. It accepts typed column renderers and tooltip descriptions so pages can define
-business-specific analytics tables with clear metric explanations.
+This reusable table component gives report pages a consistent table shell, empty state, and no-scroll
+responsive column behavior. It accepts typed column renderers and tooltip descriptions so pages can define
+business-specific analytics tables with clear metric explanations and optional table-header controls.
 */
 
 import type { ReactNode } from "react";
@@ -14,6 +14,17 @@ export type DataTableColumn<T> = {
   description: string;
   cell: (row: T) => ReactNode;
   align?: "left" | "right";
+  visibility?: "always" | "sm" | "md" | "lg" | "xl" | "2xl";
+  truncate?: boolean;
+};
+
+const columnVisibilityClassName: Record<NonNullable<DataTableColumn<unknown>["visibility"]>, string> = {
+  always: "",
+  sm: "hidden sm:table-cell",
+  md: "hidden md:table-cell",
+  lg: "hidden lg:table-cell",
+  xl: "hidden xl:table-cell",
+  "2xl": "hidden 2xl:table-cell",
 };
 
 function getStableRowKey<T>(row: T, rowIndex: number) {
@@ -44,6 +55,7 @@ export function DataTable<T>({
   title,
   description,
   actions,
+  controls,
   rowSummary,
 }: {
   columns: DataTableColumn<T>[];
@@ -52,22 +64,28 @@ export function DataTable<T>({
   title?: string;
   description?: string;
   actions?: ReactNode;
+  controls?: ReactNode;
   rowSummary?: string;
 }) {
+  // Prefer the explicit controls slot for table search/filter/sort forms while keeping actions compatible.
+  const headerControls = controls || actions;
+
   return (
-    <div className="w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white">
-      {title || description || actions || rowSummary ? (
-        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            {title ? <h2 className="text-base font-semibold text-slate-950">{title}</h2> : null}
-            {description ? <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p> : null}
-            {rowSummary ? <p className="mt-1 text-xs font-semibold text-slate-400">{rowSummary}</p> : null}
+    <div className="w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
+      {title || description || headerControls || rowSummary ? (
+        <div className="border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-[1_1_200px]">
+              {title ? <h2 className="text-lg font-semibold tracking-normal text-slate-950">{title}</h2> : null}
+              {description ? <p className="mt-1 max-w-xl text-sm leading-6 text-slate-500">{description}</p> : null}
+              {rowSummary ? <p className="mt-1 text-xs font-semibold text-slate-400">{rowSummary}</p> : null}
+            </div>
+            {headerControls ? <div className="min-w-0 flex-[1_1_360px]">{headerControls}</div> : null}
           </div>
-          {actions ? <div className="shrink-0">{actions}</div> : null}
         </div>
       ) : null}
-      <div className="max-w-full overflow-x-auto">
-        <table className="min-w-full border-separate border-spacing-0 text-sm">
+      <div className="w-full overflow-visible">
+        <table className="w-full table-fixed border-collapse text-sm">
           <thead>
             <tr>
               {columns.map((column) => (
@@ -75,17 +93,18 @@ export function DataTable<T>({
                   key={column.header}
                   scope="col"
                   className={clsx(
-                    "whitespace-nowrap border-b border-slate-200 bg-slate-50/80 px-4 py-3 font-semibold text-slate-600",
+                    "min-w-0 border-b border-slate-200 bg-slate-50/80 px-4 py-3 font-semibold text-slate-600 sm:px-5",
                     column.align === "right" ? "text-right" : "text-left",
+                    columnVisibilityClassName[column.visibility || "always"],
                   )}
                 >
                   <span
                     className={clsx(
-                      "inline-flex items-center gap-1.5",
+                      "inline-flex max-w-full items-center gap-1.5",
                       column.align === "right" ? "justify-end" : "justify-start",
                     )}
                   >
-                    {column.header}
+                    <span className="min-w-0 truncate">{column.header}</span>
                     <InfoTooltip label={column.header} content={column.description} align={column.align || "left"} />
                   </span>
                 </th>
@@ -95,19 +114,25 @@ export function DataTable<T>({
           <tbody>
             {rows.length ? (
               rows.map((row, rowIndex) => (
-                <tr
-                  key={getStableRowKey(row, rowIndex)}
-                  className="transition duration-150 odd:bg-white even:bg-slate-50/35 hover:bg-slate-50"
-                >
+                <tr key={getStableRowKey(row, rowIndex)} className="bg-white transition duration-150 hover:bg-slate-50">
                   {columns.map((column) => (
                     <td
                       key={column.header}
                       className={clsx(
-                        "whitespace-nowrap border-b border-slate-100 px-4 py-3 text-slate-700",
+                        "min-w-0 border-b border-slate-100 px-4 py-4 text-slate-700 sm:px-5",
                         column.align === "right" ? "text-right tabular-nums" : "text-left",
+                        columnVisibilityClassName[column.visibility || "always"],
                       )}
                     >
-                      {column.cell(row)}
+                      <div
+                        className={clsx(
+                          "min-w-0 max-w-full",
+                          column.align === "right" ? "ml-auto" : "",
+                          column.truncate === false ? "break-words" : "truncate",
+                        )}
+                      >
+                        {column.cell(row)}
+                      </div>
                     </td>
                   ))}
                 </tr>

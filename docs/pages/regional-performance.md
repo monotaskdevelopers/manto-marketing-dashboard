@@ -30,6 +30,7 @@ Compare Shopify and Klaviyo performance across regions.
 - Shared carded filter controls.
 - Plain-language tooltip explanations on every regional KPI and table column.
 - Region ranking table with structured column definitions and horizontal scrolling on small screens.
+- Table-header search, filter, sort, apply, and reset controls for the region ranking table.
 
 ## Security Concerns
 

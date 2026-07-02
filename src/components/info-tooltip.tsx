@@ -30,8 +30,8 @@ export function InfoTooltip({
       <span
         role="tooltip"
         className={clsx(
-          "pointer-events-none absolute top-7 z-40 w-64 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium leading-5 text-slate-600 opacity-0 shadow-lg shadow-slate-200/70 transition duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100",
-          align === "right" ? "right-0 translate-y-1" : "left-0 translate-y-1",
+          "pointer-events-none absolute top-7 z-40 hidden w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-medium leading-5 text-slate-600 shadow-lg shadow-slate-200/70 group-hover:block group-focus-within:block",
+          align === "right" ? "right-0" : "left-0",
         )}
       >
         {content}

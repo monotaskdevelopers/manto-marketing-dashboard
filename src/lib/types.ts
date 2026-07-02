@@ -78,6 +78,122 @@ export type KlaviyoFlowReport = {
   currency_code: string;
 };
 
+export type KlaviyoProfile = {
+  id: string;
+  region_id: string;
+  profile_id: string;
+  email: string | null;
+  phone_number: string | null;
+  external_id: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  organization: string | null;
+  title: string | null;
+  locale: string | null;
+  location: Record<string, unknown>;
+  properties: Record<string, unknown>;
+  subscriptions: Record<string, unknown>;
+  predictive_analytics: Record<string, unknown>;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  last_event_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoAudience = {
+  id: string;
+  region_id: string;
+  audience_type: "list" | "segment";
+  audience_id: string;
+  name: string;
+  opt_in_process: string | null;
+  is_active: boolean | null;
+  is_starred: boolean | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoAudienceMembership = {
+  id: string;
+  region_id: string;
+  audience_type: "list" | "segment";
+  audience_id: string;
+  profile_id: string;
+  joined_group_at: string | null;
+};
+
+export type KlaviyoMetric = {
+  id: string;
+  region_id: string;
+  metric_id: string;
+  name: string;
+  integration_name: string | null;
+  integration_category: string | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoEvent = {
+  id: string;
+  region_id: string;
+  event_id: string;
+  event_uuid: string | null;
+  metric_id: string | null;
+  profile_id: string | null;
+  event_datetime: string | null;
+  event_timestamp: number | null;
+  event_value: number | null;
+  event_properties: Record<string, unknown>;
+};
+
+export type KlaviyoTag = {
+  id: string;
+  region_id: string;
+  tag_id: string;
+  name: string;
+  tag_group_id: string | null;
+  tag_group_name: string | null;
+  search_text: string;
+};
+
+export type KlaviyoTagRelationship = {
+  id: string;
+  region_id: string;
+  tag_id: string;
+  target_type: "list" | "segment" | "campaign" | "flow";
+  target_id: string;
+};
+
+export type KlaviyoCampaign = {
+  id: string;
+  region_id: string;
+  campaign_id: string;
+  name: string;
+  status: string | null;
+  channel: string | null;
+  archived: boolean | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  scheduled_at: string | null;
+  send_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoFlow = {
+  id: string;
+  region_id: string;
+  flow_id: string;
+  name: string;
+  status: string | null;
+  trigger_type: string | null;
+  archived: boolean | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+};
+
 export type SyncRun = {
   id: string;
   triggered_by: SyncTrigger;

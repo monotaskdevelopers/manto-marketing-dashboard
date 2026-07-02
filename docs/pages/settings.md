@@ -21,6 +21,7 @@ Klaviyo platform connections without editing environment JSON.
 - Provider-specific save forms for region metadata and platform credentials.
 - Timezone dropdown for region timezone selection.
 - Best-effort Klaviyo conversion metric detection guidance inside the Klaviyo modal.
+- Klaviyo read-scope guidance for reporting plus comprehensive profiles, audiences, tags, metrics, and events.
 - Disconnect controls for Shopify and Klaviyo.
 - Region deactivation control.
 
@@ -34,6 +35,8 @@ Klaviyo platform connections without editing environment JSON.
 - Uses shared pill-shaped buttons, styled native inputs, and a custom-styled timezone dropdown wrapper.
 - Tries to detect a Klaviyo conversion metric ID from the connected account using Klaviyo's Metrics API,
   without blocking encrypted key storage if metric lookup is denied.
+- Explains that comprehensive Klaviyo sync needs `profiles:read`, `lists:read`, `segments:read`,
+  `tags:read`, `metrics:read`, and `events:read` in addition to campaign and flow scopes.
 - Never shows saved secrets back to the browser.
 - Lets non-developer operators manage connections safely.
 - Keeps historical reporting rows when a platform or region is disconnected.

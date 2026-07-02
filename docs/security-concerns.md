@@ -20,6 +20,8 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Store Shopify and Klaviyo secrets encrypted in `platform_connections`, not in JSON env config.
 - Keep `APP_ENCRYPTION_KEY` server-only and outside Supabase.
 - Create bootstrap users only through trusted server-side admin tooling.
+- Store recipient-level Klaviyo profile data only in authenticated, RLS-protected Supabase tables.
+- Never log comprehensive Klaviyo profile, event, audience membership, or raw payload data.
 
 ## Known Risks
 
@@ -91,6 +93,23 @@ Mitigation:
 - Prevent overlapping syncs.
 - Add production cooldown before wider rollout.
 
+### Comprehensive Klaviyo Profile And Event Data
+
+Risk:
+
+- Full Klaviyo sync stores recipient emails, phone numbers, names, locations, subscriptions, properties,
+  audience memberships, and event properties so internal reporting can search and filter them.
+- Any authenticated internal user can currently read these tables under the MVP access model.
+
+Mitigation:
+
+- Keep anonymous access revoked.
+- Keep RLS enabled on all comprehensive Klaviyo tables.
+- Only the service-role sync path can write comprehensive Klaviyo data.
+- Keep logs count-only and never log raw Klaviyo payloads, profile identifiers, event properties, or
+  membership details.
+- Add RBAC or organization scoping before granting dashboard access to a broader audience.
+
 ### Currency Comparisons
 
 Risk:
@@ -136,6 +155,8 @@ Mitigation:
 - Rotate platform tokens before production if they were used in local testing.
 - Review Supabase RLS policies with real project settings.
 - Confirm `platform_connections` remains service-role-only.
+- Confirm comprehensive Klaviyo tables are still authenticated-only and anonymous access is revoked.
+- Confirm production users are allowed to access recipient-level Klaviyo data before enabling full sync.
 - Confirm `APP_ENCRYPTION_KEY` backup and rotation procedure before production.
 - Add deployment-level security headers if missing.
 - Add audit logging for manual sync trigger user IDs if leadership needs traceability.

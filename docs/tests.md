@@ -35,7 +35,15 @@ behavior.
 - Verify sync ignores inactive regions and still runs Shopify-only, Klaviyo-only, and combined connected regions.
 - Verify Klaviyo sync requests use `bounced`, endpoint-required `group_by` fields, and a detected `conversion_metric_id`.
 - Verify Klaviyo message/channel result groups are collapsed into unique campaign/date and flow/date rows before database upsert.
+- Verify comprehensive Klaviyo sync fetches profiles, lists, segments, audience memberships, tags, metrics,
+  events, campaigns, and flows when the private key has all read scopes.
+- Verify comprehensive Klaviyo sync marks the run partial, without breaking aggregate campaign/flow reports,
+  when a comprehensive-only scope such as `tags:read` or `events:read` is missing.
+- Verify comprehensive Klaviyo tables are searchable/filterable by indexed date, audience, profile, metric,
+  status, and `search_text` columns.
 - Verify Klaviyo 400/429 logs include sanitized JSON:API error summaries without API keys, auth headers, raw payloads, or customer data.
+- Verify comprehensive Klaviyo logs never include profile emails, phone numbers, names, audience membership
+  details, event properties, or raw payloads.
 - Verify Supabase write logs include table, conflict target, row count, and sanitized PostgREST error details without secrets.
 
 ## Verification Completed
@@ -55,6 +63,8 @@ behavior.
 | Current typecheck after Klaviyo Reporting API request fix | Passed | `npm run typecheck`. |
 | Current lint after Klaviyo database upsert grain fix | Passed | `npm run lint`. |
 | Current typecheck after Klaviyo database upsert grain fix | Passed | `npm run typecheck`. |
+| Current typecheck after comprehensive Klaviyo sync expansion | Passed | `npm run typecheck`. |
+| Current lint after comprehensive Klaviyo sync expansion | Passed | `npm run lint`. |
 | Local cron sync after Klaviyo database upsert grain fix | Passed | Triggered `GET /api/cron/hourly-sync` against the local dev server with the server-side cron secret. Response was `200` with sync run `4786456a-eacd-4bb6-bd46-2d92f37e3d3f` and status `success` for 1 region. |
 | `GET /api/cron/hourly-sync` without secret | Passed | Returned `401 Unauthorized` with a sanitized JSON error. |
 | `GET /api/sync/status` in local demo mode | Passed | Returned sanitized demo sync metadata because `DEMO_MODE=true` locally. |

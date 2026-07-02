@@ -32,6 +32,8 @@ Give internal users a fast summary of Shopify and Klaviyo performance across sel
 - Carded filter controls using shared custom select and date input components.
 - Plain-language tooltip explanations on every KPI card.
 - Plain-language tooltip explanations on each table column.
+- Table-header search, filter, sort, apply, and reset controls for top regions, top campaigns, and top flows.
+- Scoped URL query parameters preserve each overview table's state independently.
 - Revenue trend tooltip explaining Shopify bars and Klaviyo overlay calculation.
 - Last sync status.
 - Manual sync action.

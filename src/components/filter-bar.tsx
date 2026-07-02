@@ -15,7 +15,7 @@ export function FilterBar({
   regions: RegionRow[];
 }) {
   return (
-    <section className="px-4 pt-5 lg:px-6">
+    <section className="px-4 lg:px-6">
       <form
         className="rounded-lg border border-slate-200 bg-white p-3"
         method="get"

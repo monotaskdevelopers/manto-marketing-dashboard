@@ -46,58 +46,68 @@ export default async function KlaviyoCampaignDrilldownPage({
     {
       header: "Campaign ID",
       description: "Klaviyo's campaign identifier, useful when comparing dashboard rows to Klaviyo exports.",
+      visibility: "2xl",
       cell: (row) => <span className="font-mono text-xs text-slate-600">{row.campaign_id}</span>,
     },
     {
       header: "Region",
       description: "The dashboard region connected to the Klaviyo account that sent the campaign.",
+      visibility: "sm",
       cell: (row) => row.region_name,
     },
     {
       header: "Send date",
       description: "The date Klaviyo reports for the campaign send.",
+      visibility: "md",
       cell: (row) => row.send_date,
     },
     {
       header: "Recipients",
       description: "Number of recipients Klaviyo reports for this campaign.",
       align: "right",
+      visibility: "lg",
       cell: (row) => formatNumber(row.recipients_count),
     },
     {
       header: "Opens",
       description: "Number of opens Klaviyo reports for this campaign row.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatNumber(row.opens_count),
     },
     {
       header: "Clicks",
       description: "Number of clicks Klaviyo reports for this campaign row.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatNumber(row.clicks_count),
     },
     {
       header: "Conversions",
       description: "Number of conversions Klaviyo attributes to this campaign row.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatNumber(row.conversions_count),
     },
     {
       header: "Open rate",
       description: "Campaign opens divided by campaign recipients.",
       align: "right",
+      visibility: "xl",
       cell: (row) => formatPercent(row.openRate),
     },
     {
       header: "Click rate",
       description: "Campaign clicks divided by campaign recipients.",
       align: "right",
+      visibility: "xl",
       cell: (row) => formatPercent(row.clickRate),
     },
     {
       header: "Conversion rate",
       description: "Campaign conversions divided by campaign recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.conversionRate),
     },
     {
@@ -110,6 +120,7 @@ export default async function KlaviyoCampaignDrilldownPage({
       header: "Rev/recipient",
       description: "Revenue per recipient. It is campaign revenue divided by campaign recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatCurrency(row.revenuePerRecipient, row.currency_code),
     },
   ];
@@ -124,15 +135,17 @@ export default async function KlaviyoCampaignDrilldownPage({
 
   return (
     <div className="space-y-6 pb-10">
-      <FilterBar filters={filters} regions={data.regions} />
-      <section className="px-4 lg:px-6">
+      <section className="px-4 pt-5 lg:px-6">
         <ReportHeader
           eyebrow="Klaviyo drill-down"
           title="Campaign Performance"
           description="Campaign-level revenue, audience, engagement, conversion, and revenue density for the selected scope."
           meta={`${filters.startDate} to ${filters.endDate}`}
         />
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      </section>
+      <FilterBar filters={filters} regions={data.regions} />
+      <section className="px-4 lg:px-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard
             label="Filtered revenue"
             value={formatCurrency(summary.revenue, currencyCode)}
@@ -162,9 +175,6 @@ export default async function KlaviyoCampaignDrilldownPage({
             accent="rose"
           />
         </div>
-      </section>
-      <section className="px-4 lg:px-6">
-        <KlaviyoDrilldownControls action="/klaviyo/campaigns" filters={filters} tableFilters={tableFilters} />
       </section>
       <section className="grid gap-4 px-4 xl:grid-cols-2 lg:px-6">
         <LeaderboardPanel
@@ -208,7 +218,14 @@ export default async function KlaviyoCampaignDrilldownPage({
           rows={rows}
           emptyMessage="No campaign rows match the current filters."
           title="Campaign detail table"
-          description="Full campaign-level rows with sortable URL controls above the table."
+          description="Full campaign-level rows with search, filter, and sort controls in the table header."
+          controls={
+            <KlaviyoDrilldownControls
+              action="/klaviyo/campaigns"
+              filters={filters}
+              tableFilters={tableFilters}
+            />
+          }
           rowSummary={`${formatNumber(rows.length)} of ${formatNumber(data.campaignRows.length)} row(s) shown`}
         />
       </section>

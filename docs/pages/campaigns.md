@@ -14,6 +14,8 @@ Help the team identify top-performing and underperforming Klaviyo campaigns acro
 
 - Campaign name.
 - Region.
+- Message type indicator.
+- Delivery status.
 - Send date.
 - Recipients.
 - Open rate.
@@ -27,10 +29,11 @@ Help the team identify top-performing and underperforming Klaviyo campaigns acro
 
 - Date range filter.
 - Region filter.
-- Sortable reporting-oriented table structure.
-- Shared carded filter controls.
-- Plain-language tooltip explanations on every campaign KPI and table column.
-- Cleaner table styling with aligned metric columns and mobile-safe horizontal scrolling.
+- Klaviyo-inspired top toolbar with library, list/calendar, and create-action styling.
+- Flat performance band for average open rate, average click rate, placed order rate, and revenue per recipient.
+- Compact URL-driven controls for search, date preset, audience/region, status-style row filters, and metric sorting.
+- Feedback strip and row table styling that mirrors the provided Campaigns reference.
+- Mobile-safe horizontal table scrolling for dense campaign rows.
 
 ## Security Concerns
 
@@ -40,3 +43,4 @@ Help the team identify top-performing and underperforming Klaviyo campaigns acro
 ## Known Gaps
 
 - Campaign creation, editing, and scheduling are out of scope.
+- Calendar view and create-campaign actions are visual placeholders until campaign management is implemented.

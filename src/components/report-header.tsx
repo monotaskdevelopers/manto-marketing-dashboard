@@ -20,7 +20,7 @@ export function ReportHeader({
     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div>
         {eyebrow ? <p className="text-sm font-semibold text-teal-700">{eyebrow}</p> : null}
-        <h1 className="mt-1 text-2xl font-semibold tracking-normal text-slate-950">{title}</h1>
+        <h1 className="mt-1 text-balance text-2xl font-semibold tracking-normal text-slate-950">{title}</h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
       </div>
       {meta ? (

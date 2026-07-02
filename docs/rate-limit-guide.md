@@ -27,6 +27,20 @@ Klaviyo campaign and flow report endpoints have low steady limits. The sync must
 - Store normalized results locally.
 - Treat 429 responses as retryable sync failures, not silent success.
 
+### Klaviyo Comprehensive Data APIs
+
+Klaviyo profiles, lists, segments, memberships, tags, metrics, events, campaigns, and flows are all
+cursor-paginated with different page sizes and rate limits. The sync must:
+
+- Use cursor pagination until Klaviyo stops returning `links.next`.
+- Keep profile and membership requests server-side only.
+- Use date-window filters for events so manual sync range controls event volume.
+- Store normalized rows locally and use `raw_payload` JSONB for future report fields.
+- Treat 401/403 as missing-scope partial sync failures.
+- Treat 429 responses as retryable sync failures.
+- Avoid logging profile data, event properties, or raw API payloads.
+- Consider moving comprehensive sync to a queue or background worker if account size causes cron/runtime timeouts.
+
 ### Vercel Cron
 
 The hourly sync route runs with schedule `0 * * * *` in UTC.
@@ -41,6 +55,8 @@ Recommended protection:
 - Cap date range to 90 days.
 - Block a new manual sync if another sync is already running.
 - In production, add a per-user or global cooldown such as one manual sync every 5 minutes.
+- Consider separate cooldowns or background jobs for comprehensive Klaviyo sync if very large accounts make
+  manual refreshes slow.
 
 ### `GET /api/cron/hourly-sync`
 
@@ -61,5 +77,6 @@ Recommended protection:
 ## Future Improvements
 
 - Store manual sync cooldowns in Supabase if multiple app instances are used.
-- Add platform-specific retry queues only if hourly sync becomes unreliable.
+- Add platform-specific retry queues if hourly sync becomes unreliable or comprehensive Klaviyo pagination
+  outgrows the request lifecycle.
 - Consider Shopify bulk operations only if order volume becomes too high for bounded hourly GraphQL pagination.

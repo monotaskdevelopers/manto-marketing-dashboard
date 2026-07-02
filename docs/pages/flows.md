@@ -14,6 +14,9 @@ Help the team understand which automated Klaviyo flows are driving revenue and e
 
 - Flow name.
 - Region.
+- Message type indicator.
+- Automation status.
+- Last activity date.
 - Revenue.
 - Recipients.
 - Open rate.
@@ -25,10 +28,11 @@ Help the team understand which automated Klaviyo flows are driving revenue and e
 
 - Date range filter.
 - Region filter.
-- Flow performance table.
-- Shared carded filter controls.
-- Plain-language tooltip explanations on every flow KPI and table column.
-- Cleaner table styling with aligned metric columns and mobile-safe horizontal scrolling.
+- Klaviyo-inspired top toolbar using the same design language as Campaigns.
+- Flat performance band for average open rate, average click rate, placed order rate, and revenue per recipient.
+- Compact URL-driven controls for search, date preset, audience/region, status-style row filters, and metric sorting.
+- Feedback strip and dense row table styling aligned with the Campaigns reference.
+- Mobile-safe horizontal table scrolling for dense flow rows.
 
 ## Security Concerns
 
@@ -38,3 +42,4 @@ Help the team understand which automated Klaviyo flows are driving revenue and e
 ## Known Gaps
 
 - Flow editing and journey management are out of scope.
+- Calendar view and create-flow actions are visual placeholders until flow management is implemented.

@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Authenticated internal users can view high-level summaries, drill into campaign and flow reports, filter by date range and region, and refresh data automatically every hour or manually on demand.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Authenticated internal users can view high-level summaries, drill into campaign and flow reports, filter by date range and region, and refresh data automatically every hour or manually on demand. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, and flow data for future reporting, sorting, filtering, and searching.
 
 ## Documentation Index
 
@@ -24,7 +24,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 | `/docs/db-plan.md` | Database plan | Tables, indexes, RLS posture, schema naming, migrations, and data retention assumptions. |
 | `/docs/contract-documentation/api-contract-documentation.md` | API contract index | Route handlers, methods, auth requirements, request/response shapes, and criticality. |
 | `/docs/middleware-details.md` | Middleware/proxy documentation | Supabase session refresh proxy, route coverage, and security limits. |
-| `/docs/route-details.md` | App route index | User-facing pages and internal API routes with purpose, behavior, and importance. |
+| `/docs/route-details.md` | App route index | User-facing pages, primary sidebar hierarchy, and internal API routes with purpose, behavior, and importance. |
 | `/docs/rate-limit-guide.md` | Rate limit plan | Platform limits, internal API protections, retry/backoff guidance, and where rate limiting should live. |
 | `/docs/security-concerns.md` | Security register | Current security decisions, risks, mitigations, and follow-ups. |
 | `/docs/dev-to-production.md` | Production checklist | Environment variables, Supabase setup, Shopify/Klaviyo credentials, cron setup, deployment checks, and go-live reminders. |
@@ -35,6 +35,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 | `/docs/pages/overview.md` | Overview page doc | Purpose, contents, features, risks, and known gaps for the main dashboard page. |
 | `/docs/pages/regional-performance.md` | Regional page doc | Purpose, contents, features, risks, and known gaps for region comparison. |
 | `/docs/pages/shopify.md` | Shopify page doc | Purpose, contents, features, risks, and known gaps for ecommerce reporting. |
+| `/docs/pages/shopify-regional-performance.md` | Shopify regional page doc | Purpose, contents, features, risks, and known gaps for the nested `/shopify/regional` report. |
 | `/docs/pages/klaviyo.md` | Klaviyo page doc | Purpose, contents, features, risks, and known gaps for email reporting. |
 | `/docs/pages/klaviyo-campaign-performance.md` | Klaviyo campaign drill-down doc | Purpose, contents, features, risks, and known gaps for the `/klaviyo/campaigns` granular campaign report. |
 | `/docs/pages/klaviyo-flow-performance.md` | Klaviyo flow drill-down doc | Purpose, contents, features, risks, and known gaps for the `/klaviyo/flows` granular automation report. |
@@ -50,6 +51,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Data sources: Shopify Admin GraphQL API and Klaviyo APIs.
 - Sync frequency: Vercel Cron calls the sync route every hour.
 - Manual sync: authenticated internal users can trigger a fresh sync from the dashboard.
+- Klaviyo comprehensive sync: stores profiles, audiences, memberships, metrics, events, tags, campaigns, flows, and raw JSON payloads in authenticated Supabase tables.
 - Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 
 ## Documentation Maintenance Rules

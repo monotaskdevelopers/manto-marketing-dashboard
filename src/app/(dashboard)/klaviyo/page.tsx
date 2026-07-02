@@ -8,6 +8,7 @@ import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { FilterBar } from "@/components/filter-bar";
 import { MetricCard } from "@/components/metric-card";
 import { ReportHeader } from "@/components/report-header";
+import { TableHeaderControls } from "@/components/table-header-controls";
 import {
   KlaviyoDeliverabilityPanel,
   KlaviyoEngagementFunnelPanel,
@@ -21,6 +22,14 @@ import { requireUser } from "@/lib/auth";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { parseDashboardFilters, type RawSearchParams } from "@/lib/filters";
 import { buildDashboardHref } from "@/lib/klaviyo-reporting";
+import {
+  buildPreservedTableFields,
+  filterAndSortKlaviyoSimpleRows,
+  getTableControlFieldNames,
+  klaviyoSimpleTableFilterOptions,
+  klaviyoSimpleTableSortOptions,
+  parseScopedTableState,
+} from "@/lib/report-table-controls";
 import type { RankedCampaign, RankedFlow } from "@/lib/types";
 
 export default async function KlaviyoPage({
@@ -28,11 +37,32 @@ export default async function KlaviyoPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const filters = parseDashboardFilters(await searchParams);
+  const rawSearchParams = await searchParams;
+  const filters = parseDashboardFilters(rawSearchParams);
   // Keep this page-level guard so unauthenticated requests redirect before report data is queried.
   await requireUser();
   const data = await getDashboardData(filters);
   const currencyCode = data.selectedRegions[0]?.currency_code || "USD";
+  const campaignFieldNames = getTableControlFieldNames("klaviyoCampaigns");
+  const flowFieldNames = getTableControlFieldNames("klaviyoFlows");
+  const campaignTableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: campaignFieldNames,
+    sortOptions: klaviyoSimpleTableSortOptions,
+    filterOptions: klaviyoSimpleTableFilterOptions,
+    defaultSort: "revenue_desc",
+    defaultFilter: "all",
+  });
+  const flowTableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: flowFieldNames,
+    sortOptions: klaviyoSimpleTableSortOptions,
+    filterOptions: klaviyoSimpleTableFilterOptions,
+    defaultSort: "revenue_desc",
+    defaultFilter: "all",
+  });
+  const campaignRows = filterAndSortKlaviyoSimpleRows(data.campaignRows, campaignTableState);
+  const flowRows = filterAndSortKlaviyoSimpleRows(data.flowRows, flowTableState);
   const campaignColumns: DataTableColumn<RankedCampaign>[] = [
     {
       header: "Campaign",
@@ -42,24 +72,28 @@ export default async function KlaviyoPage({
     {
       header: "Region",
       description: "The region connected to the Klaviyo account that produced this campaign row.",
+      visibility: "lg",
       cell: (row) => row.region_name,
     },
     {
       header: "Open rate",
       description: "Campaign opens divided by campaign recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.openRate),
     },
     {
       header: "Click rate",
       description: "Campaign clicks divided by campaign recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.clickRate),
     },
     {
       header: "Conversion rate",
       description: "Campaign conversions divided by campaign recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.conversionRate),
     },
     {
@@ -78,24 +112,28 @@ export default async function KlaviyoPage({
     {
       header: "Region",
       description: "The region connected to the Klaviyo account that produced this flow row.",
+      visibility: "lg",
       cell: (row) => row.region_name,
     },
     {
       header: "Open rate",
       description: "Flow email opens divided by flow recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.openRate),
     },
     {
       header: "Click rate",
       description: "Flow email clicks divided by flow recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.clickRate),
     },
     {
       header: "Conversion rate",
       description: "Flow conversions divided by flow recipients.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatPercent(row.conversionRate),
     },
     {
@@ -108,15 +146,17 @@ export default async function KlaviyoPage({
 
   return (
     <div className="space-y-6 pb-10">
-      <FilterBar filters={filters} regions={data.regions} />
-      <section className="px-4 lg:px-6">
+      <section className="px-4 pt-5 lg:px-6">
         <ReportHeader
           eyebrow="Marketing attribution"
           title="Klaviyo"
           description="Campaign, flow, engagement, deliverability, and regional contribution from synced Klaviyo reporting."
           meta={`${filters.startDate} to ${filters.endDate}`}
         />
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      </section>
+      <FilterBar filters={filters} regions={data.regions} />
+      <section className="px-4 lg:px-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
           <MetricCard
             label="Attributed revenue"
             value={formatCurrency(data.summary.klaviyoRevenue, currencyCode)}
@@ -201,21 +241,51 @@ export default async function KlaviyoPage({
         <div className="min-w-0">
           <DataTable
             columns={campaignColumns}
-            rows={data.topCampaigns}
+            rows={campaignRows.slice(0, 5)}
             emptyMessage="No campaign data is available yet."
             title="Campaign snapshot"
-            description="Top campaign sends by attributed revenue."
-            rowSummary={`${data.campaignRows.length} campaign row(s) in scope`}
+            description="Search, filter, and sort campaign sends by attributed revenue."
+            controls={
+              <TableHeaderControls
+                action="/klaviyo"
+                filters={filters}
+                fieldNames={campaignFieldNames}
+                state={campaignTableState}
+                filterOptions={klaviyoSimpleTableFilterOptions}
+                sortOptions={klaviyoSimpleTableSortOptions}
+                preservedFields={buildPreservedTableFields({
+                  searchParams: rawSearchParams,
+                  currentFieldNames: campaignFieldNames,
+                })}
+                searchPlaceholder="Campaign or region…"
+              />
+            }
+            rowSummary={`${formatNumber(Math.min(campaignRows.length, 5))} of ${formatNumber(data.campaignRows.length)} row(s) shown`}
           />
         </div>
         <div className="min-w-0">
           <DataTable
             columns={flowColumns}
-            rows={data.topFlows}
+            rows={flowRows.slice(0, 5)}
             emptyMessage="No flow data is available yet."
             title="Flow snapshot"
-            description="Top automated flows by attributed revenue."
-            rowSummary={`${data.flowRows.length} flow row(s) in scope`}
+            description="Search, filter, and sort automated flows by attributed revenue."
+            controls={
+              <TableHeaderControls
+                action="/klaviyo"
+                filters={filters}
+                fieldNames={flowFieldNames}
+                state={flowTableState}
+                filterOptions={klaviyoSimpleTableFilterOptions}
+                sortOptions={klaviyoSimpleTableSortOptions}
+                preservedFields={buildPreservedTableFields({
+                  searchParams: rawSearchParams,
+                  currentFieldNames: flowFieldNames,
+                })}
+                searchPlaceholder="Flow or region…"
+              />
+            }
+            rowSummary={`${formatNumber(Math.min(flowRows.length, 5))} of ${formatNumber(data.flowRows.length)} row(s) shown`}
           />
         </div>
       </section>

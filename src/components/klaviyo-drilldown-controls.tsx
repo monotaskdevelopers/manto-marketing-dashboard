@@ -1,19 +1,14 @@
 /*
 File description:
-This file renders the Klaviyo drill-down table controls. The form keeps filters in the URL so report views
-can be shared, revisited, and audited without client-only state or hidden background requests.
+This file renders compact Klaviyo drill-down table-header controls. The form keeps filters in the URL so
+report views can be shared, revisited, and audited without hidden background requests or bulky action rows.
 */
 
-import Link from "next/link";
-import { RotateCcw, SlidersHorizontal } from "lucide-react";
+import { Search } from "lucide-react";
+import { AutoSubmitForm } from "@/components/auto-submit-form";
 import type { DashboardFilters } from "@/lib/types";
-import {
-  buildDashboardHref,
-  klaviyoEngagementOptions,
-  klaviyoSortOptions,
-  type KlaviyoTableFilters,
-} from "@/lib/klaviyo-reporting";
-import { PillButton, SelectControl, TextControl } from "@/components/ui-controls";
+import { klaviyoEngagementOptions, klaviyoSortOptions, type KlaviyoTableFilters } from "@/lib/klaviyo-reporting";
+import { SelectControl, TextControl } from "@/components/ui-controls";
 
 export function KlaviyoDrilldownControls({
   action,
@@ -25,17 +20,31 @@ export function KlaviyoDrilldownControls({
   tableFilters: KlaviyoTableFilters;
 }) {
   return (
-    <form method="get" action={action} className="rounded-lg border border-slate-200 bg-white p-3">
+    <AutoSubmitForm method="get" action={action} className="w-full">
+      {/* Preserve the page-level report scope when users adjust table-specific controls. */}
       <input type="hidden" name="preset" value={filters.preset} />
       <input type="hidden" name="start" value={filters.startDate} />
       <input type="hidden" name="end" value={filters.endDate} />
       <input type="hidden" name="region" value={filters.regionSlug} />
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[1.3fr_0.7fr_0.9fr_1fr_auto_auto] xl:items-end">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="flex min-w-0 flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500" htmlFor="q">
             Search
           </label>
-          <TextControl id="q" name="q" defaultValue={tableFilters.query} placeholder="Name or region" />
+          <span className="relative block">
+            <TextControl
+              id="q"
+              name="q"
+              autoComplete="off"
+              defaultValue={tableFilters.query}
+              placeholder="Name or region…"
+              className="bg-slate-50/70 pl-10"
+            />
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+            />
+          </span>
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500" htmlFor="minRevenue">
@@ -48,15 +57,17 @@ export function KlaviyoDrilldownControls({
             min={0}
             step={1}
             inputMode="numeric"
+            autoComplete="off"
             defaultValue={tableFilters.minRevenue || ""}
             placeholder="0"
+            className="bg-slate-50/70"
           />
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-500" htmlFor="engagement">
             Engagement
           </label>
-          <SelectControl id="engagement" name="engagement" defaultValue={tableFilters.engagement}>
+          <SelectControl id="engagement" name="engagement" defaultValue={tableFilters.engagement} className="bg-slate-50/70">
             {klaviyoEngagementOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -68,7 +79,7 @@ export function KlaviyoDrilldownControls({
           <label className="text-xs font-semibold text-slate-500" htmlFor="sort">
             Sort
           </label>
-          <SelectControl id="sort" name="sort" defaultValue={tableFilters.sort}>
+          <SelectControl id="sort" name="sort" defaultValue={tableFilters.sort} className="bg-slate-50/70">
             {klaviyoSortOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
@@ -76,15 +87,7 @@ export function KlaviyoDrilldownControls({
             ))}
           </SelectControl>
         </div>
-        <PillButton type="submit" variant="primary" className="w-full">
-          <SlidersHorizontal aria-hidden="true" className="h-4 w-4" />
-          Apply
-        </PillButton>
-        <Link href={buildDashboardHref(action, filters)} className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition duration-150 hover:border-slate-300 hover:bg-slate-50">
-          <RotateCcw aria-hidden="true" className="h-4 w-4" />
-          Reset
-        </Link>
       </div>
-    </form>
+    </AutoSubmitForm>
   );
 }

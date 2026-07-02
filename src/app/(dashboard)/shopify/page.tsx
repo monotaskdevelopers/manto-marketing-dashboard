@@ -8,10 +8,19 @@ import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { FilterBar } from "@/components/filter-bar";
 import { MetricCard } from "@/components/metric-card";
 import { ReportHeader } from "@/components/report-header";
+import { TableHeaderControls } from "@/components/table-header-controls";
 import { TrendBars } from "@/components/trend-bars";
 import { formatCurrency, formatNumber, safeRate } from "@/lib/format";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { parseDashboardFilters, type RawSearchParams } from "@/lib/filters";
+import {
+  buildPreservedTableFields,
+  filterAndSortRegionalRows,
+  getTableControlFieldNames,
+  parseScopedTableState,
+  regionalTableFilterOptions,
+  regionalTableSortOptions,
+} from "@/lib/report-table-controls";
 import type { RegionalSummary } from "@/lib/types";
 
 export default async function ShopifyPage({
@@ -19,9 +28,20 @@ export default async function ShopifyPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const filters = parseDashboardFilters(await searchParams);
+  const rawSearchParams = await searchParams;
+  const filters = parseDashboardFilters(rawSearchParams);
   const data = await getDashboardData(filters);
   const currencyCode = data.selectedRegions[0]?.currency_code || "USD";
+  const tableFieldNames = getTableControlFieldNames("shopifyRegions");
+  const tableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: tableFieldNames,
+    sortOptions: regionalTableSortOptions,
+    filterOptions: regionalTableFilterOptions,
+    defaultSort: "shopify_revenue_desc",
+    defaultFilter: "all",
+  });
+  const rows = filterAndSortRegionalRows(data.regionalSummaries, tableState);
   const columns: DataTableColumn<RegionalSummary>[] = [
     {
       header: "Region",
@@ -44,39 +64,45 @@ export default async function ShopifyPage({
       header: "Customers",
       description: "Sum of daily Shopify customer counts for this region. Repeat customers can appear on multiple days.",
       align: "right",
+      visibility: "md",
       cell: (row) => formatNumber(row.customers),
     },
     {
       header: "AOV",
       description: "Average order value. It is Shopify revenue divided by Shopify orders.",
       align: "right",
+      visibility: "lg",
       cell: (row) => formatCurrency(safeRate(row.shopifyRevenue, row.orders), row.region.currency_code),
     },
     {
       header: "Refunds",
       description: "Total synced Shopify refund amount for this region and date range.",
       align: "right",
+      visibility: "xl",
       cell: (row) => formatCurrency(row.refunds, row.region.currency_code),
     },
     {
       header: "Cancelled",
       description: "Total synced Shopify orders marked as cancelled for this region and date range.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatNumber(row.cancelledOrders),
     },
   ];
 
   return (
     <div className="space-y-6 pb-10">
-      <FilterBar filters={filters} regions={data.regions} />
-      <section className="px-4 lg:px-6">
+      <section className="px-4 pt-5 lg:px-6">
         <ReportHeader
           eyebrow="Sales source of truth"
           title="Shopify"
           description="Ecommerce sales performance from synced Shopify order metrics."
           meta={`${filters.startDate} to ${filters.endDate}`}
         />
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      </section>
+      <FilterBar filters={filters} regions={data.regions} />
+      <section className="px-4 lg:px-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <MetricCard
             label="Revenue"
             value={formatCurrency(data.summary.shopifyRevenue, currencyCode)}
@@ -115,8 +141,29 @@ export default async function ShopifyPage({
         <TrendBars points={data.trend} />
       </section>
       <section className="px-4 lg:px-6">
-        <h2 className="mb-3 text-base font-semibold text-slate-950">Shopify By Region</h2>
-        <DataTable columns={columns} rows={data.regionalSummaries} emptyMessage="No Shopify data is available yet." />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          emptyMessage="No Shopify data is available yet."
+          title="Shopify By Region"
+          description="Search, filter, and sort Shopify source-of-truth performance by region."
+          controls={
+            <TableHeaderControls
+              action="/shopify"
+              filters={filters}
+              fieldNames={tableFieldNames}
+              state={tableState}
+              filterOptions={regionalTableFilterOptions}
+              sortOptions={regionalTableSortOptions}
+              preservedFields={buildPreservedTableFields({
+                searchParams: rawSearchParams,
+                currentFieldNames: tableFieldNames,
+              })}
+              searchPlaceholder="Region or currency…"
+            />
+          }
+          rowSummary={`${formatNumber(rows.length)} of ${formatNumber(data.regionalSummaries.length)} row(s) shown`}
+        />
       </section>
     </div>
   );

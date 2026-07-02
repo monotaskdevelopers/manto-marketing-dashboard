@@ -32,7 +32,7 @@ const buttonSizes: Record<ButtonSize, string> = {
 };
 
 export const inputControlClassName =
-  "h-11 w-full rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
+  "h-11 w-full min-w-0 max-w-full overflow-hidden text-ellipsis rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus-visible:border-teal-500 focus-visible:ring-4 focus-visible:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 
 export function buttonClassName({
   variant = "primary",
@@ -74,7 +74,7 @@ export function SelectControl({
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <span className="relative block">
+    <span className="relative block min-w-0">
       <select className={clsx(inputControlClassName, "appearance-none pr-10", className)} {...props}>
         {children}
       </select>

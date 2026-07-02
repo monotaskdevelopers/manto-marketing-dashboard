@@ -8,10 +8,22 @@ import { DataTable, type DataTableColumn } from "@/components/data-table";
 import { FilterBar } from "@/components/filter-bar";
 import { MetricCard } from "@/components/metric-card";
 import { ReportHeader } from "@/components/report-header";
+import { TableHeaderControls } from "@/components/table-header-controls";
 import { TrendBars } from "@/components/trend-bars";
 import { formatCurrency, formatNumber, formatPercent, safeRate } from "@/lib/format";
 import { getDashboardData } from "@/lib/data/dashboard";
 import { parseDashboardFilters, type RawSearchParams } from "@/lib/filters";
+import {
+  buildPreservedTableFields,
+  filterAndSortKlaviyoSimpleRows,
+  filterAndSortRegionalRows,
+  getTableControlFieldNames,
+  klaviyoSimpleTableFilterOptions,
+  klaviyoSimpleTableSortOptions,
+  parseScopedTableState,
+  regionalTableFilterOptions,
+  regionalTableSortOptions,
+} from "@/lib/report-table-controls";
 import type { RankedCampaign, RankedFlow, RegionalSummary } from "@/lib/types";
 
 export default async function OverviewPage({
@@ -19,11 +31,42 @@ export default async function OverviewPage({
 }: {
   searchParams: Promise<RawSearchParams>;
 }) {
-  const filters = parseDashboardFilters(await searchParams);
+  const rawSearchParams = await searchParams;
+  const filters = parseDashboardFilters(rawSearchParams);
   const data = await getDashboardData(filters);
   const currencyCode = data.selectedRegions[0]?.currency_code || "USD";
   const currencyHelper =
     data.selectedRegions.length > 1 ? "Multiple currencies may be included." : "Actual Shopify revenue.";
+  const regionFieldNames = getTableControlFieldNames("overviewRegions");
+  const campaignFieldNames = getTableControlFieldNames("overviewCampaigns");
+  const flowFieldNames = getTableControlFieldNames("overviewFlows");
+  const regionTableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: regionFieldNames,
+    sortOptions: regionalTableSortOptions,
+    filterOptions: regionalTableFilterOptions,
+    defaultSort: "shopify_revenue_desc",
+    defaultFilter: "all",
+  });
+  const campaignTableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: campaignFieldNames,
+    sortOptions: klaviyoSimpleTableSortOptions,
+    filterOptions: klaviyoSimpleTableFilterOptions,
+    defaultSort: "revenue_desc",
+    defaultFilter: "all",
+  });
+  const flowTableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: flowFieldNames,
+    sortOptions: klaviyoSimpleTableSortOptions,
+    filterOptions: klaviyoSimpleTableFilterOptions,
+    defaultSort: "revenue_desc",
+    defaultFilter: "all",
+  });
+  const regionRows = filterAndSortRegionalRows(data.regionalSummaries, regionTableState);
+  const campaignRows = filterAndSortKlaviyoSimpleRows(data.campaignRows, campaignTableState);
+  const flowRows = filterAndSortKlaviyoSimpleRows(data.flowRows, flowTableState);
   const regionColumns: DataTableColumn<RegionalSummary>[] = [
     {
       header: "Region",
@@ -41,12 +84,14 @@ export default async function OverviewPage({
       header: "Orders",
       description: "Total synced Shopify orders for this region and date range.",
       align: "right",
+      visibility: "2xl",
       cell: (row) => formatNumber(row.orders),
     },
     {
       header: "Klaviyo share",
       description: "Klaviyo-attributed revenue divided by Shopify revenue. If Shopify revenue is zero, the share is shown as 0%.",
       align: "right",
+      visibility: "xl",
       cell: (row) => formatPercent(safeRate(row.klaviyoRevenue, row.shopifyRevenue)),
     },
   ];
@@ -89,15 +134,17 @@ export default async function OverviewPage({
 
   return (
     <div className="space-y-6 pb-10">
-      <FilterBar filters={filters} regions={data.regions} />
-      <section className="px-4 lg:px-6">
+      <section className="px-4 pt-5 lg:px-6">
         <ReportHeader
           eyebrow="Executive snapshot"
           title="Overview"
           description="A combined view of Shopify sales and Klaviyo marketing contribution for the selected filters."
           meta={`${filters.startDate} to ${filters.endDate}`}
         />
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      </section>
+      <FilterBar filters={filters} regions={data.regions} />
+      <section className="px-4 lg:px-6">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           <MetricCard
             label="Shopify revenue"
             value={formatCurrency(data.summary.shopifyRevenue, currencyCode)}
@@ -147,16 +194,79 @@ export default async function OverviewPage({
       </section>
       <section className="grid gap-4 px-4 xl:grid-cols-3 lg:px-6">
         <div className="min-w-0">
-          <h2 className="mb-3 text-base font-semibold text-slate-950">Top Regions</h2>
-          <DataTable columns={regionColumns} rows={data.regionalSummaries.slice(0, 5)} emptyMessage="No region data yet." />
+          <DataTable
+            columns={regionColumns}
+            rows={regionRows.slice(0, 5)}
+            emptyMessage="No region data yet."
+            title="Top Regions"
+            description="Highest performing regions for the selected report scope."
+            controls={
+              <TableHeaderControls
+                action="/"
+                filters={filters}
+                fieldNames={regionFieldNames}
+                state={regionTableState}
+                filterOptions={regionalTableFilterOptions}
+                sortOptions={regionalTableSortOptions}
+                preservedFields={buildPreservedTableFields({
+                  searchParams: rawSearchParams,
+                  currentFieldNames: regionFieldNames,
+                })}
+                searchPlaceholder="Region or currency…"
+              />
+            }
+            rowSummary={`${formatNumber(Math.min(regionRows.length, 5))} of ${formatNumber(data.regionalSummaries.length)} row(s) shown`}
+          />
         </div>
         <div className="min-w-0">
-          <h2 className="mb-3 text-base font-semibold text-slate-950">Top Campaigns</h2>
-          <DataTable columns={campaignColumns} rows={data.topCampaigns} emptyMessage="No campaign data yet." />
+          <DataTable
+            columns={campaignColumns}
+            rows={campaignRows.slice(0, 5)}
+            emptyMessage="No campaign data yet."
+            title="Top Campaigns"
+            description="Highest performing Klaviyo campaigns for the selected scope."
+            controls={
+              <TableHeaderControls
+                action="/"
+                filters={filters}
+                fieldNames={campaignFieldNames}
+                state={campaignTableState}
+                filterOptions={klaviyoSimpleTableFilterOptions}
+                sortOptions={klaviyoSimpleTableSortOptions}
+                preservedFields={buildPreservedTableFields({
+                  searchParams: rawSearchParams,
+                  currentFieldNames: campaignFieldNames,
+                })}
+                searchPlaceholder="Campaign or region…"
+              />
+            }
+            rowSummary={`${formatNumber(Math.min(campaignRows.length, 5))} of ${formatNumber(data.campaignRows.length)} row(s) shown`}
+          />
         </div>
         <div className="min-w-0">
-          <h2 className="mb-3 text-base font-semibold text-slate-950">Top Flows</h2>
-          <DataTable columns={flowColumns} rows={data.topFlows} emptyMessage="No flow data yet." />
+          <DataTable
+            columns={flowColumns}
+            rows={flowRows.slice(0, 5)}
+            emptyMessage="No flow data yet."
+            title="Top Flows"
+            description="Highest performing Klaviyo automations for the selected scope."
+            controls={
+              <TableHeaderControls
+                action="/"
+                filters={filters}
+                fieldNames={flowFieldNames}
+                state={flowTableState}
+                filterOptions={klaviyoSimpleTableFilterOptions}
+                sortOptions={klaviyoSimpleTableSortOptions}
+                preservedFields={buildPreservedTableFields({
+                  searchParams: rawSearchParams,
+                  currentFieldNames: flowFieldNames,
+                })}
+                searchPlaceholder="Flow or region…"
+              />
+            }
+            rowSummary={`${formatNumber(Math.min(flowRows.length, 5))} of ${formatNumber(data.flowRows.length)} row(s) shown`}
+          />
         </div>
       </section>
     </div>

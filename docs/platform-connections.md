@@ -51,6 +51,13 @@ This keeps the tool easier to operate for non-developers while still avoiding pl
 - Shopify Admin GraphQL orders query: `https://shopify.dev/docs/api/admin-graphql/latest/queries/orders`
 - Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
 - Klaviyo Get Metrics endpoint: `https://developers.klaviyo.com/en/reference/get_metrics`
+- Klaviyo Get Profiles endpoint: `https://developers.klaviyo.com/en/reference/get_profiles`
+- Klaviyo Get Lists endpoint: `https://developers.klaviyo.com/en/reference/get_lists`
+- Klaviyo Get Segments endpoint: `https://developers.klaviyo.com/en/reference/get_segments`
+- Klaviyo Get Tags endpoint: `https://developers.klaviyo.com/en/reference/get_tags`
+- Klaviyo Get Events endpoint: `https://developers.klaviyo.com/en/reference/get_events`
+- Klaviyo Get Campaigns endpoint: `https://developers.klaviyo.com/en/reference/get_campaigns`
+- Klaviyo Get Flows endpoint: `https://developers.klaviyo.com/en/reference/get_flows`
 - Klaviyo campaign values reports: `https://developers.klaviyo.com/en/reference/query_campaign_values`
 - Klaviyo flow values reports: `https://developers.klaviyo.com/en/reference/query_flow_values`
 - Supabase API security and RLS: `https://supabase.com/docs/guides/api/securing-your-api`
@@ -66,9 +73,10 @@ This keeps the tool easier to operate for non-developers while still avoiding pl
 | Encryption helper | `/src/lib/security/secret-encryption.ts` | Encrypts and decrypts platform secrets with AES-256-GCM. |
 | Region config loader | `/src/lib/config/regions.ts` | Loads active connected regions from Supabase for sync. |
 | Shopify client | `/src/lib/integrations/shopify.ts` | Calls Shopify Admin GraphQL and aggregates orders by day. |
-| Klaviyo client | `/src/lib/integrations/klaviyo.ts` | Calls Klaviyo campaign and flow report endpoints. |
-| Sync orchestrator | `/src/lib/sync/run-sync.ts` | Runs each active connected region and writes rows to Supabase. |
+| Klaviyo client | `/src/lib/integrations/klaviyo.ts` | Calls Klaviyo reporting endpoints plus profiles, audiences, memberships, tags, metrics, events, campaigns, and flows. |
+| Sync orchestrator | `/src/lib/sync/run-sync.ts` | Runs each active connected region, writes rows to Supabase in batches, and marks partial Klaviyo segments separately. |
 | DB migration | `/supabase/migrations/S002-platform-connections.sql` | Adds `platform_connections` with RLS and service-role-only writes. |
+| DB migration | `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds comprehensive Klaviyo data tables with RLS, indexes, and raw JSON payload retention. |
 
 ## Required Environment Variables
 
@@ -205,18 +213,25 @@ Credential needed:
 
 - Klaviyo private API key.
 
-Required current scopes for campaign and flow sync:
+Required current scopes for campaign and flow reporting sync:
 
 - `campaigns:read`
 - `flows:read`
 
-Recommended scope for automatic revenue metric detection:
+Required current scopes for comprehensive Klaviyo data sync:
 
+- `profiles:read`
+- `lists:read`
+- `segments:read`
+- `tags:read`
 - `metrics:read`
+- `events:read`
 
 `metrics:read` lets the app automatically detect the best conversion metric ID through Klaviyo's Metrics
-API after the private key is saved. If Klaviyo denies metric lookup, the app still stores the encrypted
-private key so campaign and flow sync can run.
+API after the private key is saved. It is also required to store the full metric library used by synced
+events. If Klaviyo denies metric lookup during settings save, the app still stores the encrypted private
+key so campaign and flow sync can run; the comprehensive sync segment will be marked partial if any
+required comprehensive scope is missing.
 
 Steps:
 
@@ -224,7 +239,7 @@ Steps:
 2. Go to account API key settings.
 3. Create a private API key.
 4. Use read-only or custom scopes.
-5. Include `campaigns:read` and `flows:read`; include `metrics:read` when possible for automatic conversion metric detection.
+5. Include `campaigns:read`, `flows:read`, `profiles:read`, `lists:read`, `segments:read`, `tags:read`, `metrics:read`, and `events:read`.
 6. Copy the private key immediately.
 7. Click `Connect Klaviyo` or `Update Klaviyo` in `/settings`.
 8. Follow the multi-step Klaviyo popup guide.
@@ -234,7 +249,7 @@ Steps:
 12. The server tries Klaviyo's Metrics API with `fields[metric]=id,name,integration`.
 13. The server prefers revenue metrics such as `Placed Order` or `Ordered Product`.
 14. If metric lookup is denied, reconnect later with `metrics:read`; campaign and flow sync can still run.
-15. Run a manual sync to confirm reports return data.
+15. Run a manual sync to confirm reports and comprehensive Klaviyo tables return data.
 
 The app sends Klaviyo requests with:
 
@@ -282,6 +297,29 @@ Important implementation detail:
   statistics can be calculated.
 - Debug logs should show only sanitized request metadata, normalization counts, Supabase write counts,
   and sanitized JSON:API or database error details.
+
+## Klaviyo Comprehensive Data Request Shape
+
+Comprehensive sync calls these Klaviyo GET endpoints:
+
+- `GET /api/profiles` for all account profiles with subscriptions and predictive analytics when allowed.
+- `GET /api/lists` and `GET /api/segments` for audience metadata.
+- `GET /api/lists/{id}/profiles` and `GET /api/segments/{id}/profiles` for audience memberships.
+- `GET /api/tags` for the tag library.
+- `GET /api/metrics` for metric names and integration metadata.
+- `GET /api/events` for events inside the current sync date window.
+- `GET /api/campaigns` for email, SMS, and mobile push campaign metadata.
+- `GET /api/flows` for flow metadata.
+
+Important implementation detail:
+
+- Comprehensive sync stores normalized columns plus `raw_payload` JSONB so future reports can use fields
+  that are not promoted into first-class columns yet.
+- Full-snapshot comprehensive tables use `last_seen_sync_run_id` so removed Klaviyo objects can be pruned
+  after a successful full fetch.
+- `klaviyo_events` is date-windowed by the manual/cron sync range and is not pruned as a full snapshot.
+- Logs must show counts and endpoint names only, never profile emails, phone numbers, names, raw event
+  properties, or full Klaviyo payloads.
 
 ## Disconnect Behavior
 
@@ -349,13 +387,15 @@ Check:
 Check:
 
 - Private key belongs to the correct account.
-- Key has `campaigns:read` and `flows:read`; add `metrics:read` if conversion metric detection is missing.
+- Key has `campaigns:read` and `flows:read` for reporting.
+- Key has `profiles:read`, `lists:read`, `segments:read`, `tags:read`, `metrics:read`, and `events:read` for comprehensive data.
 - `KLAVIYO_REVISION` is supported.
 - Logs show `conversion_metric_id=present`; reconnect Klaviyo with `metrics:read` if the metric was not detected.
 - Logs show requested statistics include `bounced`, not `bounces`.
 - Logs show `group_by` includes the required campaign or flow ID fields for the endpoint.
 - Logs show campaign and flow result groups being normalized into campaign/date and flow/date database rows.
 - Logs show which Supabase table write failed, if any, plus sanitized PostgREST code/message/details/hint.
+- Logs show comprehensive row counts only; no profile or event payloads should appear.
 - The account has campaign or flow data in the selected date range.
 - The Settings save step stored an encrypted Klaviyo key in `platform_connections`; reconnect Klaviyo if only the region label exists.
 

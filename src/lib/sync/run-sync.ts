@@ -9,9 +9,11 @@ import "server-only";
 import { isDemoMode } from "@/lib/env";
 import { getRegionConfigs } from "@/lib/config/regions";
 import {
+  fetchKlaviyoComprehensiveData,
   fetchKlaviyoCampaignReports,
   fetchKlaviyoFlowReports,
   type KlaviyoCampaignSyncRow,
+  type KlaviyoComprehensiveSyncData,
   type KlaviyoFlowSyncRow,
 } from "@/lib/integrations/klaviyo";
 import { fetchShopifyDailyMetrics } from "@/lib/integrations/shopify";
@@ -92,6 +94,7 @@ async function upsertSyncRows(params: {
   conflictTarget: string;
   regionSlug: string;
   syncRunId: string;
+  batchSize?: number;
 }) {
   if (!params.rows.length) {
     console.info(
@@ -106,20 +109,53 @@ async function upsertSyncRows(params: {
     `[sync:db] Upserting ${params.rows.length} ${params.table} row(s) for region ${params.regionSlug} in run ${params.syncRunId} using ${params.conflictTarget}.`,
   );
 
-  const { error } = await admin
-    .from(params.table)
-    .upsert(params.rows, { onConflict: params.conflictTarget });
+  const batchSize = Math.max(1, params.batchSize || 500);
 
-  if (error) {
-    const summary = summarizeDatabaseError(error);
-    console.warn(
-      `[sync:db] Failed to upsert ${params.table} for region ${params.regionSlug} in run ${params.syncRunId}. ${summary}`,
-    );
-    throw new Error(`Unable to write ${params.table} rows for region ${params.regionSlug}. ${summary}`);
+  for (let index = 0; index < params.rows.length; index += batchSize) {
+    const batch = params.rows.slice(index, index + batchSize);
+    const { error } = await admin
+      .from(params.table)
+      .upsert(batch, { onConflict: params.conflictTarget });
+
+    if (error) {
+      const summary = summarizeDatabaseError(error);
+      console.warn(
+        `[sync:db] Failed to upsert ${params.table} for region ${params.regionSlug} in run ${params.syncRunId}. ${summary}`,
+      );
+      throw new Error(`Unable to write ${params.table} rows for region ${params.regionSlug}. ${summary}`);
+    }
   }
 
   console.info(
     `[sync:db] Upserted ${params.rows.length} ${params.table} row(s) for region ${params.regionSlug} in run ${params.syncRunId}.`,
+  );
+}
+
+async function deleteStaleSyncRows(params: {
+  table: string;
+  regionId: string;
+  regionSlug: string;
+  syncRunId: string;
+}) {
+  const admin = getSupabaseAdmin();
+
+  // Full Klaviyo object fetches should remove rows that no longer appear in the account.
+  const { error } = await admin
+    .from(params.table)
+    .delete()
+    .eq("region_id", params.regionId)
+    .neq("last_seen_sync_run_id", params.syncRunId);
+
+  if (error) {
+    const summary = summarizeDatabaseError(error);
+    console.warn(
+      `[sync:db] Failed to remove stale ${params.table} rows for region ${params.regionSlug} in run ${params.syncRunId}. ${summary}`,
+    );
+    throw new Error(`Unable to remove stale ${params.table} rows for region ${params.regionSlug}. ${summary}`);
+  }
+
+  console.info(
+    `[sync:db] Removed stale ${params.table} row(s) for region ${params.regionSlug} in run ${params.syncRunId}.`,
   );
 }
 
@@ -206,6 +242,123 @@ function aggregateKlaviyoDaily(params: {
   });
 
   return Array.from(daily.values());
+}
+
+function attachKlaviyoSyncMetadata(params: {
+  rows: Record<string, unknown>[];
+  regionId: string;
+  syncRunId: string;
+  now: string;
+}) {
+  return params.rows.map((row) => ({
+    ...row,
+    region_id: params.regionId,
+    last_seen_sync_run_id: params.syncRunId,
+    synced_at: params.now,
+    updated_at: params.now,
+  }));
+}
+
+async function syncKlaviyoComprehensiveTables(params: {
+  data: KlaviyoComprehensiveSyncData;
+  regionId: string;
+  regionSlug: string;
+  syncRunId: string;
+  now: string;
+}) {
+  const common = {
+    regionId: params.regionId,
+    regionSlug: params.regionSlug,
+    syncRunId: params.syncRunId,
+    now: params.now,
+  };
+
+  const upserts: Array<{
+    table: string;
+    rows: Record<string, unknown>[];
+    conflictTarget: string;
+    pruneStale: boolean;
+  }> = [
+    {
+      table: "klaviyo_profiles",
+      rows: params.data.profiles as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,profile_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_audiences",
+      rows: params.data.audiences as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,audience_type,audience_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_audience_memberships",
+      rows: params.data.audienceMemberships as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,audience_type,audience_id,profile_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_metrics",
+      rows: params.data.metrics as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,metric_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_events",
+      rows: params.data.events as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,event_id",
+      pruneStale: false,
+    },
+    {
+      table: "klaviyo_tags",
+      rows: params.data.tags as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,tag_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_tag_relationships",
+      rows: params.data.tagRelationships as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,tag_id,target_type,target_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_campaigns",
+      rows: params.data.campaigns as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,campaign_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_flows",
+      rows: params.data.flows as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,flow_id",
+      pruneStale: true,
+    },
+  ];
+
+  for (const upsert of upserts) {
+    await upsertSyncRows({
+      table: upsert.table,
+      rows: attachKlaviyoSyncMetadata({
+        rows: upsert.rows,
+        regionId: common.regionId,
+        syncRunId: common.syncRunId,
+        now: common.now,
+      }),
+      conflictTarget: upsert.conflictTarget,
+      regionSlug: common.regionSlug,
+      syncRunId: common.syncRunId,
+      batchSize: 250,
+    });
+
+    if (upsert.pruneStale) {
+      await deleteStaleSyncRows({
+        table: upsert.table,
+        regionId: common.regionId,
+        regionSlug: common.regionSlug,
+        syncRunId: common.syncRunId,
+      });
+    }
+  }
 }
 
 async function findRunningSync() {
@@ -327,6 +480,7 @@ async function syncRegion(params: {
   }
 
   if (hasKlaviyoCredentials(params.region)) {
+    // Keep aggregate reporting separate from the larger object sync so one missing scope only causes partial success.
     try {
       const [campaignRows, flowRows] = await Promise.all([
         fetchKlaviyoCampaignReports({
@@ -383,10 +537,33 @@ async function syncRegion(params: {
         syncRunId: params.syncRunId,
       });
 
-      syncedPlatforms.push("Klaviyo");
+      syncedPlatforms.push("Klaviyo reporting");
     } catch (error) {
-      platformErrors.push(`Klaviyo: ${sanitizeError(error)}`);
-      console.warn(`[sync] Klaviyo failed for region ${params.region.slug} in run ${params.syncRunId}.`);
+      platformErrors.push(`Klaviyo reporting: ${sanitizeError(error)}`);
+      console.warn(`[sync] Klaviyo reporting failed for region ${params.region.slug} in run ${params.syncRunId}.`);
+    }
+
+    try {
+      const comprehensiveData = await fetchKlaviyoComprehensiveData({
+        region: params.region,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
+
+      await syncKlaviyoComprehensiveTables({
+        data: comprehensiveData,
+        regionId: params.regionId,
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+        now,
+      });
+
+      syncedPlatforms.push("Klaviyo comprehensive data");
+    } catch (error) {
+      platformErrors.push(`Klaviyo comprehensive data: ${sanitizeError(error)}`);
+      console.warn(
+        `[sync] Klaviyo comprehensive data failed for region ${params.region.slug} in run ${params.syncRunId}.`,
+      );
     }
   }
 

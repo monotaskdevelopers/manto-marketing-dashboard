@@ -157,3 +157,38 @@ Important safeguards:
 - Log only sanitized request metadata and JSON:API error summaries for debugging 400, 401, 403, 429, and 5xx responses.
 - Normalize response fields before database writes.
 - Do not expose private keys to the browser.
+
+### Klaviyo Comprehensive Data APIs
+
+Purpose:
+
+- Fetch the broader Klaviyo account dataset needed for recipient, audience, metric, event, tag, campaign,
+  and flow reporting/search/filtering.
+
+Credential:
+
+- Server-only Klaviyo private API key.
+
+Endpoints used:
+
+- `GET /api/profiles`
+- `GET /api/lists`
+- `GET /api/lists/{id}/profiles`
+- `GET /api/segments`
+- `GET /api/segments/{id}/profiles`
+- `GET /api/tags`
+- `GET /api/metrics`
+- `GET /api/events`
+- `GET /api/campaigns`
+- `GET /api/flows`
+
+Important safeguards:
+
+- Require read-only Klaviyo scopes for profiles, lists, segments, tags, metrics, events, campaigns, and flows.
+- Cursor-paginate until `links.next` is absent.
+- Filter events by the current sync date window.
+- Upsert comprehensive rows in batches.
+- Store full source objects in `raw_payload` JSONB while exposing indexed normalized columns for report queries.
+- Mark full-snapshot rows with `last_seen_sync_run_id` and prune stale rows after successful full fetches.
+- Do not prune `klaviyo_events` as a full snapshot because it is date-windowed event history.
+- Log endpoint counts only; never log profile PII, event properties, or raw JSON payloads.

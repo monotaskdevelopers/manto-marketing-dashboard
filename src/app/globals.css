@@ -45,6 +45,12 @@ select {
   font: inherit;
 }
 
+button,
+a,
+summary {
+  touch-action: manipulation;
+}
+
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,

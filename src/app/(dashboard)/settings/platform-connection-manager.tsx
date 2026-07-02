@@ -126,8 +126,8 @@ const guideSteps: Record<Provider, GuideStep[]> = {
       bullets: [
         "Grant campaigns:read.",
         "Grant flows:read.",
-        "Grant metrics:read so the dashboard can detect the conversion metric ID automatically.",
-        "If metrics:read is missing, the key can still be saved for campaign and flow sync.",
+        "Grant profiles:read, lists:read, segments:read, tags:read, metrics:read, and events:read for full synced reporting data.",
+        "If a comprehensive scope is missing, the key can still be saved but sync will mark that Klaviyo segment as partial.",
       ],
     },
     {
@@ -454,7 +454,8 @@ function ConnectionFormFields({
           </Field>
           <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-800">
             The conversion metric ID is detected automatically from Klaviyo after save when the private
-            key includes metrics:read. The key is still saved for campaign and flow sync if that lookup is blocked.
+            key includes metrics:read. For full recipient, audience, tag, metric, and event sync, include all
+            read-only Klaviyo reporting scopes listed in the setup guide.
           </div>
           <Field label="Klaviyo private key" className="md:col-span-2">
             <TextControl

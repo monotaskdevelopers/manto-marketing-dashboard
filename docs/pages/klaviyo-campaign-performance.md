@@ -31,6 +31,7 @@ same date and region scope used by the main dashboard.
 - Minimum revenue filter.
 - Engagement filters for conversions, low click rate, low conversion rate, and high revenue density.
 - Sort controls for revenue, recipients, rates, date, and name.
+- Search, filter, sort, apply, and reset controls live in the campaign table header for a consistent table workflow.
 - URL-driven controls for shareable internal report views.
 
 ## Security Concerns
