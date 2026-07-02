@@ -48,7 +48,8 @@ Important columns:
 - `shopify_connected_at`, `shopify_disconnected_at`: Shopify connection state timestamps.
 - `klaviyo_account_label`: non-secret Klaviyo account label.
 - `klaviyo_private_key_ciphertext`: encrypted Klaviyo private API key.
-- `klaviyo_conversion_metric_id`: optional non-secret Klaviyo conversion metric ID.
+- `klaviyo_conversion_metric_id`: optional non-secret Klaviyo conversion metric ID that is
+  auto-detected from the connected Klaviyo account when a new private key is saved.
 - `klaviyo_connected_at`, `klaviyo_disconnected_at`: Klaviyo connection state timestamps.
 - `created_by`, `updated_by`: authenticated user IDs for basic operational traceability.
 

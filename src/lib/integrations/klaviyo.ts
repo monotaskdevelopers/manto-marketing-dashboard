@@ -259,7 +259,12 @@ export async function fetchPreferredKlaviyoConversionMetricId(params: {
       regionSlug: params.regionSlug,
     });
 
-    metrics.push(...asArray(payload.data).flatMap((item) => metricFromResponseItem(item) || []));
+    metrics.push(
+      ...asArray(payload.data).flatMap((item) => {
+        const metric = metricFromResponseItem(item);
+        return metric ? [metric] : [];
+      }),
+    );
 
     const links = asRecord(payload.links);
     const nextLink = readString(links, ["next"], "");
