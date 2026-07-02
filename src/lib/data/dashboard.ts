@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/server";
 import type {
   DashboardData,
   DashboardFilters,
+  KlaviyoCampaign,
   KlaviyoCampaignReport,
   KlaviyoDailyMetric,
   KlaviyoFlowReport,
@@ -25,6 +26,38 @@ function throwIfError(error: unknown, label: string) {
   if (error) {
     throw new Error(`${label} failed.`);
   }
+}
+
+function campaignMetadataDate(campaign: KlaviyoCampaign) {
+  return (
+    campaign.send_at ||
+    campaign.scheduled_at ||
+    campaign.klaviyo_updated_at ||
+    campaign.klaviyo_created_at ||
+    new Date().toISOString()
+  ).slice(0, 10);
+}
+
+function campaignMetadataToReportRow({
+  campaign,
+  currencyCode,
+}: {
+  campaign: KlaviyoCampaign;
+  currencyCode: string;
+}): KlaviyoCampaignReport {
+  return {
+    id: campaign.id,
+    region_id: campaign.region_id,
+    campaign_id: campaign.campaign_id,
+    campaign_name: campaign.name,
+    send_date: campaignMetadataDate(campaign),
+    recipients_count: 0,
+    opens_count: 0,
+    clicks_count: 0,
+    conversions_count: 0,
+    revenue_amount: 0,
+    currency_code: currencyCode,
+  };
 }
 
 export async function getLatestSyncRun(): Promise<SyncRun | null> {
@@ -105,11 +138,17 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
     .gte("metric_date", filters.startDate)
     .lte("metric_date", filters.endDate);
 
-  const [shopifyResult, klaviyoResult, campaignResult, flowResult, latestSync] = await Promise.all([
+  const campaignMetadataQuery = supabase
+    .from("klaviyo_campaigns")
+    .select("id, region_id, campaign_id, name, status, channel, archived, klaviyo_created_at, klaviyo_updated_at, scheduled_at, send_at, search_text")
+    .in("region_id", regionIds);
+
+  const [shopifyResult, klaviyoResult, campaignResult, flowResult, campaignMetadataResult, latestSync] = await Promise.all([
     shopifyQuery,
     klaviyoQuery,
     campaignQuery,
     flowQuery,
+    campaignMetadataQuery,
     getLatestSyncRun(),
   ]);
 
@@ -117,13 +156,26 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
   throwIfError(klaviyoResult.error, "Loading Klaviyo metrics");
   throwIfError(campaignResult.error, "Loading campaign reports");
   throwIfError(flowResult.error, "Loading flow reports");
+  throwIfError(campaignMetadataResult.error, "Loading campaign metadata fallback");
+
+  const regionCurrencyById = new Map(regions.map((region) => [region.id, region.currency_code]));
+  const reportCampaignRows = (campaignResult.data || []) as KlaviyoCampaignReport[];
+  const metadataCampaignRows = ((campaignMetadataResult.data || []) as KlaviyoCampaign[])
+    .map((campaign) =>
+      campaignMetadataToReportRow({
+        campaign,
+        currencyCode: regionCurrencyById.get(campaign.region_id) || "USD",
+      }),
+    )
+    .filter((campaign) => campaign.send_date >= filters.startDate && campaign.send_date <= filters.endDate);
+  const campaignRows = reportCampaignRows.length ? reportCampaignRows : metadataCampaignRows;
 
   return buildDashboardDataFromRows({
     filters,
     regions,
     shopifyRows: (shopifyResult.data || []) as ShopifyDailyMetric[],
     klaviyoRows: (klaviyoResult.data || []) as KlaviyoDailyMetric[],
-    campaignRows: (campaignResult.data || []) as KlaviyoCampaignReport[],
+    campaignRows,
     flowRows: (flowResult.data || []) as KlaviyoFlowReport[],
     latestSync,
   });

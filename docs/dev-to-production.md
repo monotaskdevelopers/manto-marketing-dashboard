@@ -71,15 +71,12 @@ For the full process, see `/docs/initial-user-setup.md`.
 
 ## Klaviyo Production Checks
 
-- Klaviyo campaign/flow ingestion is active in cron/manual sync.
-- Create private keys with read-only/custom scopes for campaigns, flows, metrics, lists, segments, tags,
-  profiles, events, templates, forms, coupons, catalogs, reviews, tracking settings, web feeds, webhooks,
-  custom objects, push tokens, and beta customer-agent metadata only when those datasets are needed.
-- Grant `metrics:read` so automatic conversion metric detection and Reporting API rows can work.
-- Keep images out of scope.
-- Do not enable full historical profile, subscription, custom-object record, customer-agent conversation
-  message/content, or data-privacy crawls until those backfills have explicit retention, rate-limit, and
-  privacy rules.
+- Klaviyo campaign-only ingestion is active in cron/manual sync.
+- Create private keys with read-only/custom scopes for campaigns, campaign tags, and campaign audiences.
+- Grant `metrics:read` only if the existing Settings-time conversion metric detector is still needed; the
+  active Klaviyo campaign metadata sync does not fetch Reporting API rows.
+- Keep flows, profiles, events, metrics, lists, segments, broad raw resources, and images out of the active
+  Klaviyo sync until those datasets have explicit product scope, retention, rate-limit, and privacy rules.
 - Confirm the API revision is supported.
 - Store private keys only through `/settings`, where they are encrypted before being saved to Supabase.
 
@@ -96,14 +93,16 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Re-run `npm audit --omit=dev`; the current audit has a moderate transitive `postcss` advisory through Next.js and should be revisited before launch.
 - Verify login.
 - Verify dashboard report pages have been rebuilt, or explicitly accept the blank placeholder state for the release.
-- Verify Campaigns displays live synced campaign report rows plus campaign metadata enrichment before using it for production reporting decisions.
+- Verify Campaigns displays live synced campaign metadata rows plus wired audience/status/tag/date/sort
+  controls before using it for production reporting decisions.
 - Verify Flows displays live synced flow report rows plus flow metadata enrichment before using it for production reporting decisions.
-- Connect or remove the remaining visual-only Campaigns and Flows action/filter controls before production launch.
+- Connect or remove the remaining visual-only Campaigns and Flows action controls before production launch.
 - Verify `/settings` loads for authenticated users.
 - Verify a test region can be connected from `/settings`.
 - Verify disconnect removes encrypted Shopify/Klaviyo secrets from `platform_connections`.
 - Verify manual sync works for Shopify-ready test regions.
-- Verify Klaviyo-only test regions sync Klaviyo metadata/report rows or return sanitized partial warnings for missing scopes.
+- Verify Klaviyo-only test regions sync campaign metadata rows or return sanitized partial warnings for
+  missing campaign tag/audience scopes.
 - Verify combined Shopify/Klaviyo test regions sync both platforms and report partial status only when one platform or optional resource fails.
 - Verify hourly cron sync works in production.
 - Verify no secrets appear in browser bundle, responses, or logs.

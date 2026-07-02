@@ -30,18 +30,19 @@ The helper must:
 
 ### Klaviyo Data Ingestion APIs
 
-Klaviyo account data ingestion is active for the first campaign/flow reporting slice. Manual and cron sync
-call Klaviyo campaign, flow, metric, list, segment, tag, profile, event, Reporting API, and optional raw
-resource endpoints from server-only code.
+Klaviyo account data ingestion is active only for the current campaign metadata slice. Manual and cron sync
+call Klaviyo campaigns, campaign tags, campaign tag IDs, and beta campaign-audience endpoints from
+server-only code.
 
 The sync must:
 
 - Use cursor pagination and bounded retry/backoff for 429 responses.
-- Keep profile and event ingestion date-windowed in the hourly/manual request path.
-- Treat optional broad resource endpoints as non-fatal when a private key lacks a read scope.
-- Fetch optional broad resources with a small concurrency pool so one manual sync does not open every
-  Klaviyo endpoint at once.
-- Keep raw-resource page limits bounded; large backfills should become explicit operator jobs.
+- Do not send `page[size]` to campaign-scoped tag/audience relationship endpoints because Klaviyo rejects
+  that query on those resources.
+- Fetch per-campaign tag and audience details sequentially with low concurrency so one manual sync does not
+  open hundreds of duplicate Klaviyo requests at once.
+- Treat campaign tag and campaign-audience detail endpoint failures as non-fatal sanitized warnings after
+  bounded retries. Core campaign fetch failures should still fail the Klaviyo region clearly.
 - Never log raw payloads, customer PII, auth headers, API keys, push tokens, subscription details, or event properties.
 
 ### Vercel Cron
@@ -58,7 +59,7 @@ Recommended protection:
 - Cap date range to 90 days.
 - Block a new manual sync if another sync is already running.
 - In production, add a per-user or global cooldown such as one manual sync every 5 minutes.
-- Add separate cooldowns or background jobs before expanding large Klaviyo full-account backfills.
+- Add separate cooldowns or background jobs before expanding beyond the current Klaviyo campaign metadata slice.
 
 ### `GET /api/cron/hourly-sync`
 
@@ -79,8 +80,8 @@ Recommended protection:
 ## Future Improvements
 
 - Store manual sync cooldowns in Supabase if multiple app instances are used.
-- Add platform-specific retry queues if hourly sync becomes unreliable or comprehensive Klaviyo pagination
-  outgrows the request lifecycle.
-- Move broad Klaviyo backfills for profiles, custom object records, customer-agent conversation messages, and
-  subscriptions into queued jobs before enabling full historical crawls.
+- Add platform-specific retry queues if hourly sync becomes unreliable or campaign detail pagination outgrows
+  the request lifecycle.
+- Move broader Klaviyo ingestion for flows, profiles, custom object records, customer-agent conversation
+  messages, and subscriptions into queued jobs before enabling full historical crawls.
 - Consider Shopify bulk operations only if order volume becomes too high for bounded hourly GraphQL pagination.

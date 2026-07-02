@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns and Flows read local Klaviyo report and metadata tables when rows are present. Klaviyo campaign/flow ingestion has been reintroduced with a generic raw-resource layer for broader API coverage.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns reads local Klaviyo campaign metadata/report rows when rows are present. The active Klaviyo sync is currently limited to campaigns, campaign status, campaign audiences, and campaign tags.
 
 ## Documentation Index
 
@@ -49,12 +49,12 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Framework: Next.js App Router.
 - Styling: Tailwind CSS.
 - Database and auth: Supabase.
-- Data sources: Shopify Admin GraphQL API and Klaviyo JSON:API/Reporting API sync.
+- Data sources: Shopify Admin GraphQL API and the narrowed Klaviyo campaign metadata sync.
 - Sync frequency: Vercel Cron calls the sync route every hour.
 - Manual sync: authenticated internal users can trigger a fresh Shopify and Klaviyo sync from Settings.
 - UI reset: authenticated report pages except Settings, Campaigns, and Flows are intentionally blank placeholders while the new experience is designed.
 - Campaigns and Flows: rebuilt Klaviyo-style pages render existing synced report rows, URL-driven search, metadata enrichment, and empty states instead of static sample data.
-- Klaviyo ingestion: encrypted Klaviyo keys stored in Settings are used by cron/manual sync to fetch campaigns, flows, lists, segments, metrics, tags, date-windowed profiles/events, Reporting API rows, and optional raw resources except images.
+- Klaviyo ingestion: encrypted Klaviyo keys stored in Settings are used by cron/manual sync to fetch only campaigns, campaign status, campaign audiences, and campaign tags for the current product slice.
 - Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 
 ## Documentation Maintenance Rules

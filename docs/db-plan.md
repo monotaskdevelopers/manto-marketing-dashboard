@@ -10,9 +10,9 @@ future schema changes are made.
 ## Database Purpose
 
 Supabase Postgres stores normalized reporting data fetched from Shopify and Klaviyo. The dashboard reads
-from local tables instead of calling external APIs on every page load. Klaviyo campaign/flow ingestion now
-writes promoted reporting tables plus a generic raw JSON:API resource table so broader Klaviyo endpoint
-coverage can expand without a migration for every resource family.
+from local tables instead of calling external APIs on every page load. The active Klaviyo sync currently
+writes only campaign, campaign status, campaign audience, campaign tag, and raw campaign/tag/audience
+resource rows needed by the Campaigns table.
 
 ## Migration Files
 
@@ -388,21 +388,19 @@ Indexes target the dashboard's main filters:
 - Enable RLS on `platform_connections`.
 - Do not grant `authenticated` direct access to `platform_connections`.
 - Read and write `platform_connections` only through server-side service role code that returns sanitized summaries.
-- Enable RLS on all comprehensive Klaviyo tables.
-- Authenticated users can select comprehensive Klaviyo data for internal reporting.
-- Anonymous users cannot read comprehensive Klaviyo data.
-- Future service-role sync code should be the only writer for comprehensive Klaviyo data after ingestion is rebuilt.
+- Enable RLS on all Klaviyo tables.
+- Authenticated users can select Klaviyo data for internal reporting.
+- Anonymous users cannot read Klaviyo data.
+- Future service-role sync code should be the only writer for Klaviyo data after ingestion is rebuilt.
 - Campaign/flow detail tables and `klaviyo_raw_resources` follow the same authenticated-read and
   service-role-write posture.
 
 ## Data Retention
 
-For MVP, keep all synced reporting rows indefinitely. The rebuilt Klaviyo sync writes snapshot-style
-metadata rows with `last_seen_sync_run_id` but does not prune stale rows yet. Date-windowed events and
-Reporting API rows should not be pruned by full-snapshot logic.
-
-If profile or event tables grow too large, add date partitioning for `klaviyo_events`, retention policy
-options by metric, and possibly dedicated profile search materialization.
+For MVP, keep all synced reporting rows indefinitely. The active Klaviyo sync writes snapshot-style campaign
+metadata rows with `last_seen_sync_run_id` but does not prune stale rows yet. If broader profile, event, or
+Reporting API ingestion is reintroduced, define retention and partitioning before enabling production-scale
+backfills.
 
 ## Schema Change Rule
 

@@ -50,10 +50,10 @@ If the team needs fresher numbers before the next hourly sync, they can click a 
 - Create `klaviyo_daily_metrics` for daily Klaviyo rollups.
 - Create `klaviyo_campaign_reports` for campaign table rows.
 - Create `klaviyo_flow_reports` for flow table rows.
-- Create comprehensive Klaviyo tables for profiles, audiences, audience memberships, metrics, events, tags,
-  campaigns, campaign messages, campaign audiences, flows, flow actions, and flow messages.
+- Create Klaviyo tables for the current campaign metadata slice and keep broader historical tables available
+  for future scoped ingestion work.
 - Add indexes for date range and region filters.
-- Add search, status, relationship, and JSONB indexes for comprehensive Klaviyo reporting tables.
+- Add search, status, relationship, and JSONB indexes for Klaviyo reporting tables.
 - Enable RLS on all tables.
 - Grant authenticated users read-only access.
 - Keep writes server-side through service role sync code.
@@ -89,14 +89,10 @@ If the team needs fresher numbers before the next hourly sync, they can click a 
 
 - Build Klaviyo client:
   - Uses region Klaviyo private key.
-  - Calls Reporting API campaign values and flow values.
-  - Normalizes campaigns and flows into local report rows.
-  - Fetches comprehensive Klaviyo profiles, audiences, memberships, metrics, events, tags, campaigns,
-    campaign messages, campaign audience relationships, flows, flow actions, and flow messages for local
-    analytics/search/filtering.
-  - Upserts comprehensive rows with deterministic conflict keys and prunes stale full-snapshot objects after
-    successful syncs.
-  - Handles rate-limit responses with clear sync failures.
+  - Fetches only campaigns, campaign status, campaign audiences, campaign tags, and campaign tag IDs for the
+    active Campaigns table slice.
+  - Upserts campaign metadata rows with deterministic conflict keys.
+  - Handles rate-limit responses with clear retries and sanitized optional-detail warnings.
 
 ### Phase 7: Sync Orchestration
 

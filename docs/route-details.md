@@ -17,9 +17,9 @@ or route handlers are added, removed, renamed, or materially changed.
 | `/shopify` | Shopify reporting placeholder | Preserves the protected Shopify overview route but renders no page body during the redesign reset. | High |
 | `/shopify/regional` | Shopify regional reporting placeholder | Reuses the blank `/regional` implementation under the nested Shopify navigation hierarchy. | High |
 | `/klaviyo` | Klaviyo reporting placeholder | Preserves the protected Klaviyo overview route but renders no page body during the redesign reset. | High |
-| `/klaviyo/campaigns` | Klaviyo campaign workspace | Renders the shared rebuilt Campaigns workspace with synced campaign reports and campaign metadata enrichment under the nested Klaviyo navigation hierarchy. | High |
+| `/klaviyo/campaigns` | Klaviyo campaign workspace | Renders the shared rebuilt Campaigns workspace with synced campaign rows, campaign metadata enrichment, and URL-backed audience/status/tag/date/sort controls under the nested Klaviyo navigation hierarchy. | High |
 | `/klaviyo/flows` | Klaviyo flow workspace | Renders the shared rebuilt Flows workspace with synced flow reports and flow metadata enrichment under the nested Klaviyo navigation hierarchy. | High |
-| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with synced metrics, server-rendered search, campaign metadata enrichment, compact controls, and an empty state when no report rows match. | High |
+| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with synced campaign rows, server-rendered search, campaign metadata enrichment, URL-backed filters/sort/date controls, and an empty state when no rows match. | High |
 | `/flows` | Flow reporting workspace | Renders the rebuilt Klaviyo-style flow workspace with synced flow rows, server-rendered search, flow metadata enrichment, compact controls, and an empty state when no report rows match. | High |
 | `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
 
@@ -48,5 +48,7 @@ or route handlers are added, removed, renamed, or materially changed.
 - API routes that mutate data must verify auth or cron secret server-side.
 - Date and region filters should remain URL query parameters when analytics pages are rebuilt.
 - Analytics pages are intentionally blank during the UI reset, except Settings and the rebuilt real-data Campaigns and Flows workspaces.
+- Campaigns table controls for search, date range, audience, channel, status, tag, A/B test, archived,
+  performance filter, and sort should remain URL-driven server controls.
 - Future analytics table filters should stay inside the table header, server-rendered, and URL-driven so reports remain shareable without exposing platform credentials or adding client-only reporting state.
 - Future pages with multiple tables should use scoped query parameter names so one table's search, filter, and sort state does not overwrite another table's state.

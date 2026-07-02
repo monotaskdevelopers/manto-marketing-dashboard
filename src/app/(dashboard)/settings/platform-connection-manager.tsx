@@ -63,7 +63,7 @@ const providerCopy: Record<
   klaviyo: {
     label: "Klaviyo",
     title: "Connect Klaviyo",
-    description: "Create a private key with reporting scopes, then save it against the matching region.",
+    description: "Create a private key with campaign read scopes, then save it against the matching region.",
     buttonLabel: "Save Klaviyo connection",
     connectedLabel: "Klaviyo",
   },
@@ -124,9 +124,9 @@ const guideSteps: Record<Provider, GuideStep[]> = {
       title: "Choose safe connection scopes",
       description: "Use read-only or custom scopes so the dashboard cannot change Klaviyo data.",
       bullets: [
-        "Grant metrics:read if you want automatic conversion metric detection during save.",
-        "Grant read-only scopes for campaigns, flows, metrics, lists, segments, tags, profiles, and events when those resources should sync.",
-        "Add optional read scopes for catalogs, coupons, forms, reviews, templates, tracking settings, web feeds, and webhooks when those raw resources are needed.",
+        "Grant campaign read access so the sync can fetch campaigns and campaign status.",
+        "Grant tag read access so the sync can fetch campaign tags and campaign tag IDs.",
+        "Grant campaign audience beta/read access if Klaviyo exposes it for this account.",
       ],
     },
     {
@@ -452,9 +452,8 @@ function ConnectionFormFields({
             />
           </Field>
           <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-800">
-            The conversion metric ID is detected automatically from Klaviyo after save when the private
-            key includes metrics:read. Campaigns, flows, and related Klaviyo reporting resources sync after
-            saving when the private key includes the needed read scopes.
+            The current Klaviyo sync fetches only campaigns, campaign status, campaign audiences, and
+            campaign tags after saving when the private key includes the needed read scopes.
           </div>
           <Field label="Klaviyo private key" className="md:col-span-2">
             <TextControl

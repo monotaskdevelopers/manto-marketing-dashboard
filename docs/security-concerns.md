@@ -20,10 +20,9 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Store Shopify and Klaviyo secrets encrypted in `platform_connections`, not in JSON env config.
 - Keep `APP_ENCRYPTION_KEY` server-only and outside Supabase.
 - Create bootstrap users only through trusted server-side admin tooling.
-- Store recipient-level Klaviyo profile data only in authenticated, RLS-protected Supabase tables.
-- Store campaign/flow message metadata and raw Klaviyo detail payloads only in authenticated, RLS-protected Supabase tables.
-- Store broad Klaviyo raw resource snapshots only in authenticated, RLS-protected Supabase tables.
-- Never log comprehensive Klaviyo profile, event, audience membership, campaign message, flow message, or raw payload data.
+- Store active Klaviyo campaign, campaign-audience, campaign-tag, and raw campaign/tag/audience resources
+  only in authenticated, RLS-protected Supabase tables.
+- Never log Klaviyo raw payloads, auth headers, private keys, or recipient/customer data.
 
 ## Known Risks
 
@@ -95,24 +94,26 @@ Mitigation:
 - Prevent overlapping syncs.
 - Add production cooldown before wider rollout.
 
-### Comprehensive Klaviyo Profile And Event Data
+### Broader Klaviyo Profile And Event Data
 
 Risk:
 
-- Full Klaviyo sync stores recipient emails, phone numbers, names, locations, subscriptions, properties,
-  audience memberships, event properties, campaign message metadata, flow action metadata, flow message
-  metadata, broad raw resource snapshots, and raw Klaviyo payloads so internal reporting can search and filter them.
-- Any authenticated internal user can currently read these tables under the MVP access model.
+- Historical migrations include tables capable of storing recipient emails, phone numbers, names, locations,
+  subscriptions, properties, audience memberships, event properties, campaign message metadata, flow action
+  metadata, flow message metadata, broad raw resource snapshots, and raw Klaviyo payloads.
+- The active Klaviyo sync no longer fills those broader profile/event/flow/reporting datasets, but they
+  remain sensitive if future ingestion slices populate them.
+- Any authenticated internal user can currently read Klaviyo reporting tables under the MVP access model.
 
 Mitigation:
 
 - Keep anonymous access revoked.
-- Keep RLS enabled on all comprehensive Klaviyo tables.
-- Only the service-role sync path can write comprehensive Klaviyo data.
+- Keep RLS enabled on all Klaviyo tables.
+- Only the service-role sync path can write Klaviyo data.
 - Keep logs count-only and never log raw Klaviyo payloads, profile identifiers, event properties, or
   membership details.
-- Keep campaign/flow message payloads server-side only; do not render raw payloads in the browser unless a
-  future authenticated report explicitly needs those fields.
+- Keep campaign/flow message payloads server-side only if those datasets are reintroduced; do not render raw
+  payloads in the browser unless a future authenticated report explicitly needs those fields.
 - Keep push-token raw snapshots authenticated-only and do not render token values in the UI without a
   separate privacy and retention review.
 - Do not add images or customer-agent conversation message/content sync without a separate privacy and

@@ -13,9 +13,8 @@ as the application grows.
 
 Purpose:
 
-- Runs hourly sync for every active region with Shopify or Klaviyo credentials. Shopify rows, Klaviyo
-  campaign/flow metadata, date-windowed Klaviyo report rows, and optional Klaviyo raw resources are written
-  server-side.
+- Runs hourly sync for every active region with Shopify or Klaviyo credentials. Shopify rows and the current
+  Klaviyo campaign metadata slice are written server-side.
 
 Authentication:
 
@@ -160,22 +159,22 @@ Important safeguards:
 
 Purpose:
 
-- Fetch Klaviyo account data into local Supabase tables for fast, date-scopable reporting and future
-  dashboard filters.
+- Fetch the current Klaviyo campaign metadata slice into local Supabase tables for fast Campaigns table
+  filters.
 
 Current behavior:
 
-- Manual and cron sync call campaign, flow, metric, list, segment, tag, profile, event, and Reporting API
-  endpoints when a region has an encrypted Klaviyo private key.
-- Optional broader resource endpoints are attempted as raw snapshots when the connected key has the needed
-  read scope; missing scopes, unsupported optional endpoints, and transient optional endpoint failures are
-  logged as sanitized warnings and do not fail the whole region.
-- Images are not fetched.
+- Manual and cron sync call campaign, campaign tag, campaign tag ID, and beta campaign-audience endpoints
+  when a region has an encrypted Klaviyo private key.
+- Campaign tag and campaign-audience lookups are campaign-scoped optional details. Missing scopes,
+  unsupported beta endpoints, 429 exhaustion after bounded retries, and transient detail failures are logged
+  as sanitized warnings and do not fail the whole region.
+- Flows, profiles, events, metrics, Reporting API rows, lists, segments, broad raw resources, and images are
+  not fetched by the active Klaviyo sync.
 
 Important safeguards:
 
 - Any future Klaviyo ingestion must stay server-only and must never log profile PII, event properties, raw
   payloads, API keys, or auth headers.
-- Large profile, subscription, custom-object record, customer-agent conversation message/content, and
-  data-privacy jobs should be promoted into explicit backfill/operator flows instead of being hidden inside
-  hourly cron.
+- Broader Klaviyo datasets should be added back as explicit product slices with their own rate-limit,
+  retention, and privacy rules instead of being hidden inside the campaign metadata sync.

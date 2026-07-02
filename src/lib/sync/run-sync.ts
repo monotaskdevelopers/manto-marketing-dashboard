@@ -1,8 +1,8 @@
 /*
 File description:
-This file orchestrates platform sync runs. It writes Shopify reporting rows, writes rebuilt Klaviyo
-campaign/flow/reporting/resource rows, records sync history, prevents overlapping jobs, and keeps logs
-sanitized for debugging.
+This file orchestrates platform sync runs. It writes Shopify reporting rows, writes the current narrow
+Klaviyo campaign metadata scope, records sync history, prevents overlapping jobs, and keeps logs sanitized
+for debugging.
 */
 
 import "server-only";
@@ -269,64 +269,8 @@ async function syncRegion(params: {
         endDate: params.endDate,
       });
 
-      await upsertSyncRows({
-        table: "klaviyo_daily_metrics",
-        rows: klaviyoRows.dailyMetricRows,
-        conflictTarget: "region_id,metric_date",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_campaign_reports",
-        rows: klaviyoRows.campaignReportRows,
-        conflictTarget: "region_id,campaign_id,send_date",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_flow_reports",
-        rows: klaviyoRows.flowReportRows,
-        conflictTarget: "region_id,flow_id,metric_date",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_profiles",
-        rows: klaviyoRows.profileRows,
-        conflictTarget: "region_id,profile_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-        batchSize: 250,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_audiences",
-        rows: klaviyoRows.audienceRows,
-        conflictTarget: "region_id,audience_type,audience_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_audience_memberships",
-        rows: klaviyoRows.audienceMembershipRows,
-        conflictTarget: "region_id,audience_type,audience_id,profile_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_metrics",
-        rows: klaviyoRows.metricRows,
-        conflictTarget: "region_id,metric_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_events",
-        rows: klaviyoRows.eventRows,
-        conflictTarget: "region_id,event_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-        batchSize: 250,
-      });
+      // Current Klaviyo scope is deliberately narrow: campaigns, campaign audiences, campaign tags, and
+      // campaign status. Do not add broader Klaviyo writes here without updating the product scope first.
       await upsertSyncRows({
         table: "klaviyo_tags",
         rows: klaviyoRows.tagRows,
@@ -349,37 +293,9 @@ async function syncRegion(params: {
         syncRunId: params.syncRunId,
       });
       await upsertSyncRows({
-        table: "klaviyo_campaign_messages",
-        rows: klaviyoRows.campaignMessageRows,
-        conflictTarget: "region_id,message_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
         table: "klaviyo_campaign_audiences",
         rows: klaviyoRows.campaignAudienceRows,
         conflictTarget: "region_id,campaign_id,campaign_message_id,relationship_name,audience_type,audience_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_flows",
-        rows: klaviyoRows.flowRows,
-        conflictTarget: "region_id,flow_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_flow_actions",
-        rows: klaviyoRows.flowActionRows,
-        conflictTarget: "region_id,action_id",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-      await upsertSyncRows({
-        table: "klaviyo_flow_messages",
-        rows: klaviyoRows.flowMessageRows,
-        conflictTarget: "region_id,message_id",
         regionSlug: params.region.slug,
         syncRunId: params.syncRunId,
       });

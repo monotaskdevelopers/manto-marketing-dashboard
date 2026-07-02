@@ -19,6 +19,10 @@ import type {
 } from "@/lib/types";
 
 const metadataBatchSize = 80;
+const campaignMetadataSelect =
+  "id, region_id, campaign_id, name, status, channel, channel_list, tag_ids, audience_ids, archived, klaviyo_created_at, klaviyo_updated_at, scheduled_at, send_at, search_text, a_b_test";
+const campaignMetadataFallbackSelect =
+  "id, region_id, campaign_id, name, status, channel, archived, klaviyo_created_at, klaviyo_updated_at, scheduled_at, send_at, search_text";
 
 export function buildKlaviyoMetadataKey(regionId: string, klaviyoObjectId: string) {
   return `${regionId}:${klaviyoObjectId}`;
@@ -56,13 +60,24 @@ export async function getCampaignMetadataByReportRows(rows: RankedCampaign[]) {
   const campaignIds = uniqueValues(rows.map((row) => row.campaign_id));
 
   for (const campaignIdBatch of toBatches(campaignIds)) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("klaviyo_campaigns")
-      .select(
-        "id, region_id, campaign_id, name, status, channel, archived, klaviyo_created_at, klaviyo_updated_at, scheduled_at, send_at, search_text",
-      )
+      .select(campaignMetadataSelect)
       .in("region_id", regionIds)
       .in("campaign_id", campaignIdBatch);
+
+    if (error) {
+      // Campaign filter fields come from the latest Klaviyo migration. Fall back to the old shape so the
+      // page remains readable while a local or staging database is catching up.
+      const fallbackResult = await supabase
+        .from("klaviyo_campaigns")
+        .select(campaignMetadataFallbackSelect)
+        .in("region_id", regionIds)
+        .in("campaign_id", campaignIdBatch);
+
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
 
     throwIfError(error, "Loading Klaviyo campaign metadata");
 

@@ -173,12 +173,16 @@ export type KlaviyoCampaign = {
   name: string;
   status: string | null;
   channel: string | null;
+  channel_list?: string[];
+  tag_ids?: string[];
+  audience_ids?: string[];
   archived: boolean | null;
   klaviyo_created_at: string | null;
   klaviyo_updated_at: string | null;
   scheduled_at: string | null;
   send_at: string | null;
   search_text: string;
+  a_b_test?: Record<string, unknown>;
 };
 
 export type KlaviyoFlow = {

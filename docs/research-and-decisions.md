@@ -56,65 +56,35 @@ Next.js and Vercel:
 
 ### Klaviyo
 
-- Klaviyo provides Reporting API endpoints for campaign values and flow values.
-- Klaviyo recommends Reporting API for campaign and flow performance that should match its UI.
-- Campaign and flow values endpoints are low-rate endpoints, so sync jobs must avoid repeated rapid calls.
-- Klaviyo metric aggregate queries can support broader event rollups, but the MVP should prefer campaign and flow reporting endpoints for campaign/flow tables.
 - Klaviyo private keys authenticate server-side `/api` requests and should not be exposed in client-side code.
-- The campaign report endpoint requires `campaigns:read`; the flow report endpoint requires `flows:read`.
-- Campaign and flow report requests should use the statistic name `bounced`; `bounces` is not accepted by
-  the Reporting API.
-- Campaign and flow report responses group row identifiers under `groupings` and numeric metrics under
-  `statistics`, so sync normalization must read both objects instead of assuming flat attributes.
-- Campaign and flow reports can return multiple message or channel result groups for one logical
-  campaign/date or flow/date row in our schema.
-- The Metrics API can return metric `id`, `name`, and `integration`; use it to automatically detect the conversion metric ID after a Klaviyo key is saved.
-- Klaviyo's Metrics API requires `metrics:read`, can filter by integration, and returns up to 200 metrics per page.
-- A missing `metrics:read` scope should not block saving a Klaviyo key because campaign and flow sync only need their reporting scopes.
-- Klaviyo profiles, lists, segments, list profiles, segment profiles, tags, metrics, events, campaigns,
-  campaign messages, flows, flow actions, and flow messages are cursor-paginated JSON:API resources that
-  should be followed until `links.next` is absent.
-- Use the profile endpoints for recipient-level rows and list/segment profile endpoints for audience
-  membership rows; do not log profile PII while syncing those resources.
-- Use campaign metadata plus campaign-message resources so reports can filter by campaign status, channel,
-  subject, sender metadata, and message-level details.
-- Store campaign audience relationships from Klaviyo campaign/message relationship payloads with the
-  original relationship key preserved so future reports can distinguish direct, included, and excluded
-  audience targeting when Klaviyo exposes it.
-- Use flow metadata plus flow-action and flow-message resources so reports can join automation performance
-  to the flow action tree and message metadata.
-- Avoid sparse fieldsets for the comprehensive object sync unless an endpoint needs a special field because
-  `raw_payload` is the future-proof copy used when reporting needs fields not promoted into normalized columns.
+- The current active Klaviyo sync is limited to campaigns, campaign status, campaign audiences, campaign
+  tags, and campaign tag IDs.
+- Campaigns can be fetched by channel so email, SMS, and mobile push campaign rows can be deduplicated into
+  one local campaign table.
+- Campaign-scoped tag/audience relationship endpoints should not receive `page[size]`; Klaviyo rejects that
+  query on those resources.
+- Campaign audience beta endpoints should use the `.pre` API revision only for the beta request.
+- The Metrics API can still return metric `id`, `name`, and `integration` for the existing Settings-time
+  conversion metric detector, but metrics are not part of the active campaign metadata sync.
+- Broader Klaviyo datasets such as flows, Reporting API rows, profiles, events, lists, segments, templates,
+  forms, coupons, web feeds, and webhooks should not be reintroduced without a separate scoped decision.
 - New integrations should use the latest stable API revision and track deprecation timelines.
 
 Decision:
 
-- Use Klaviyo Reporting API for campaign and flow reports.
 - Keep the API revision in one constant so it can be upgraded deliberately.
-- Store normalized daily and item-level reports locally in Supabase so the UI does not repeatedly hit Klaviyo.
-- Do not ask users to paste a conversion metric ID manually; detect it server-side from the connected Klaviyo account when `metrics:read` is available.
-- Collapse Klaviyo message/channel result groups into the existing campaign/date and flow/date table grain
-  before writing to Supabase instead of expanding the MVP schema to message-level reporting.
-- Keep Klaviyo request and failure logs sanitized, but include endpoint path, revision, date window,
-  statistics, group-by fields, conversion metric presence, HTTP status, and JSON:API error summaries.
-- Store comprehensive Klaviyo objects in normalized report-friendly tables plus `raw_payload` JSONB:
-  profiles, audiences, audience memberships, metrics, events, tags, tag relationships, campaigns, campaign
-  messages, campaign audience relationships, flows, flow actions, and flow messages.
-- Store broad Klaviyo JSON:API resources in `klaviyo_raw_resources` so accounts, catalogs, coupons, forms,
-  reviews, templates, tracking settings, web feeds, webhooks, agent metadata, custom object data sources, push
-  tokens, translations, and future resource families can be synced without creating a new table for every
-  endpoint.
+- Store campaign metadata locally in Supabase so the Campaigns table can filter by region, date, status,
+  channel, audience, tag, A/B test state, and archived state without calling Klaviyo on page load.
+- Keep Klaviyo request and failure logs sanitized, but include endpoint path, revision, HTTP status, retry
+  attempts, region slug, sync run ID, row counts, and JSON:API error summaries.
+- Treat campaign fetch as required; if campaigns cannot be fetched after bounded retries, fail the Klaviyo
+  region clearly.
+- Treat campaign tag and campaign-audience detail endpoints as optional per-campaign enrichment; after
+  bounded retries, log sanitized warnings and continue syncing core campaign rows.
 - Keep beta/pre-release Klaviyo endpoints optional and non-fatal, and send the `.pre` API revision only for
   endpoints that require it.
-- Exclude images from ingestion because the current reporting product does not need image binaries or image
-  metadata.
-- Treat profiles, audiences, memberships, metrics, tags, tag relationships, campaigns, campaign messages,
-  campaign audiences, flows, flow actions, and flow messages as full-snapshot resources that can prune stale
-  rows after a successful full fetch; treat events as date-windowed history that should not be full-snapshot
-  pruned.
-- Keep the comprehensive sync count-oriented and non-PII in logs: stage starts, page counts, included-resource
-  counts, table upsert counts, conflict targets, and sanitized errors are allowed; customer identifiers,
-  event properties, and raw payloads are not.
+- Exclude images and all broader Klaviyo resource families from the active sync because the current product
+  slice does not need them.
 
 ### Shopify
 

@@ -19,16 +19,19 @@ engagement quality, and placed-order revenue.
 - Average click rate.
 - Placed Order percentage.
 - Revenue per recipient.
-- Campaign table populated from synced `klaviyo_campaign_reports` rows.
-- Campaign name, status, send timestamp, and channel/type enrichment from synced `klaviyo_campaigns` and `klaviyo_campaign_messages` metadata when available.
+- Campaign table populated from synced `klaviyo_campaign_reports` rows when present, or synced
+  `klaviyo_campaigns` metadata rows as the current campaign-ingestion fallback.
+- Campaign name, status, send timestamp, channel, audience IDs, tag IDs, A/B test metadata, and archived
+  state enrichment from synced `klaviyo_campaigns` metadata when available.
 
 ## Features
 
 - Server-rendered search field using the `campaignQ` URL parameter.
-- Date range display based on the shared dashboard date filters.
-- Audience, Channels, Status, Tags, A/B test, and Archived filter controls.
-- Placed Order metric selector.
-- Table display settings button.
+- Date range selector wired to the shared `preset`, `start`, and `end` dashboard filters.
+- Audience, Channels, Status, Tags, A/B test, and Archived filters wired to synced campaign metadata.
+- Performance filter and table sort controls wired to the campaign table URL parameters.
+- Placed Order metric selector placeholder.
+- Table display settings button placeholder.
 - Table columns for Campaign, Message Type, Status, Send Date, Open Rate, Click Rate, and Placed Order Rev.
 - `/klaviyo/campaigns` reuses this page so the nested sidebar route and top-level `/campaigns` route stay aligned.
 
@@ -40,6 +43,7 @@ engagement quality, and placed-order revenue.
 
 ## Known Gaps
 
-- Audience, Channels, Status, Tags, A/B test, Archived, metric selector, and table display controls are visual controls only.
-- Campaign message type falls back to safe name-based inference if comprehensive campaign/message metadata has not been synced yet.
+- Placed Order metric selector and table display controls are visual placeholders.
+- Campaign message type falls back to safe name/channel inference because the active Klaviyo sync does not
+  fetch campaign message rows.
 - Create campaign, View library, Calendar, benchmarks, and row action controls are visual placeholders.

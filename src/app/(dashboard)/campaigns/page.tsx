@@ -52,8 +52,6 @@ import {
 } from "@/lib/report-table-controls";
 import type { DashboardFilters, KlaviyoCampaign, KlaviyoCampaignMessage, RankedCampaign } from "@/lib/types";
 
-const filterLabels = ["Audience", "Channels", "Status", "Tags", "A/B test", "Archived"] as const;
-
 type CampaignPageProps = {
   searchParams: Promise<RawSearchParams>;
 };
@@ -71,19 +69,47 @@ type CampaignMetricCard = {
 };
 
 function buildDashboardHiddenFields(filters: DashboardFilters) {
-  const fields = [
-    { name: "preset", value: filters.preset },
-    { name: "region", value: filters.regionSlug },
+  return [{ name: "region", value: filters.regionSlug }];
+}
+
+function getSearchParamValue(searchParams: RawSearchParams, name: string) {
+  const value = searchParams[name];
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function normalizeOptionValue(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, "_").slice(0, 120);
+}
+
+function uniqueStrings(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value))));
+}
+
+function hasObjectValues(value: unknown) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length);
+}
+
+function buildDynamicOptions(values: string[], allLabel: string) {
+  const optionsByValue = new Map<string, { value: string; label: string }>();
+
+  uniqueStrings(values).forEach((label) => {
+    const value = normalizeOptionValue(label);
+
+    if (!optionsByValue.has(value)) {
+      optionsByValue.set(value, { value, label });
+    }
+  });
+
+  return [
+    { value: "all", label: allLabel },
+    ...Array.from(optionsByValue.values()).sort((left, right) =>
+      left.label.localeCompare(right.label, "en", { sensitivity: "base" }),
+    ),
   ];
+}
 
-  if (filters.preset === "custom") {
-    fields.push(
-      { name: "start", value: filters.startDate },
-      { name: "end", value: filters.endDate },
-    );
-  }
-
-  return fields;
+function optionMatches(selectedValue: string, values: string[]) {
+  return selectedValue === "all" || values.some((value) => normalizeOptionValue(value) === selectedValue);
 }
 
 function getDateRangeLabel(filters: DashboardFilters) {
@@ -239,6 +265,137 @@ function getCampaignStatusLabel(metadata: KlaviyoCampaign | undefined) {
   return formatStatusLabel(metadata?.status, "Sent");
 }
 
+function getCampaignChannels(metadata: KlaviyoCampaign | undefined, messages: KlaviyoCampaignMessage[]) {
+  return uniqueStrings([
+    metadata?.channel,
+    ...(metadata?.channel_list || []),
+    ...messages.map((message) => message.channel),
+  ]);
+}
+
+function getCampaignTagIds(metadata: KlaviyoCampaign | undefined) {
+  return uniqueStrings(metadata?.tag_ids || []);
+}
+
+function getCampaignAudienceIds(metadata: KlaviyoCampaign | undefined) {
+  return uniqueStrings(metadata?.audience_ids || []);
+}
+
+function campaignHasAbTest({
+  row,
+  metadata,
+  messages,
+}: {
+  row: RankedCampaign;
+  metadata: KlaviyoCampaign | undefined;
+  messages: KlaviyoCampaignMessage[];
+}) {
+  const name = `${row.campaign_name} ${metadata?.name || ""}`.toLowerCase();
+
+  return messages.length > 1 || hasObjectValues(metadata?.a_b_test) || name.includes("a/b") || name.includes("ab test");
+}
+
+function parseCampaignAdvancedFilters(searchParams: RawSearchParams) {
+  const abTest = getSearchParamValue(searchParams, "campaignAbTest");
+  const archived = getSearchParamValue(searchParams, "campaignArchived");
+
+  return {
+    status: getSearchParamValue(searchParams, "campaignStatus") || "all",
+    channel: getSearchParamValue(searchParams, "campaignChannel") || "all",
+    audience: getSearchParamValue(searchParams, "campaignAudience") || "all",
+    tag: getSearchParamValue(searchParams, "campaignTag") || "all",
+    abTest: abTest === "ab" || abTest === "single" ? abTest : "all",
+    archived: archived === "active" || archived === "archived" ? archived : "all",
+  };
+}
+
+function buildCampaignFilterOptions({
+  rows,
+  metadataByKey,
+  messagesByKey,
+}: {
+  rows: RankedCampaign[];
+  metadataByKey: Map<string, KlaviyoCampaign>;
+  messagesByKey: Map<string, KlaviyoCampaignMessage[]>;
+}) {
+  const statuses: string[] = [];
+  const channels: string[] = [];
+  const audiences: string[] = [];
+  const tags: string[] = [];
+
+  rows.forEach((row) => {
+    const key = buildKlaviyoMetadataKey(row.region_id, row.campaign_id);
+    const metadata = metadataByKey.get(key);
+    const messages = messagesByKey.get(key) || [];
+
+    statuses.push(getCampaignStatusLabel(metadata));
+    channels.push(...getCampaignChannels(metadata, messages));
+    audiences.push(...getCampaignAudienceIds(metadata));
+    tags.push(...getCampaignTagIds(metadata));
+  });
+
+  return {
+    statusOptions: buildDynamicOptions(statuses, "Status: All"),
+    channelOptions: buildDynamicOptions(channels, "Channels: All"),
+    audienceOptions: buildDynamicOptions(audiences, "Audience: All"),
+    tagOptions: buildDynamicOptions(tags, "Tags: All"),
+  };
+}
+
+function filterCampaignRowsByMetadata({
+  rows,
+  filters,
+  metadataByKey,
+  messagesByKey,
+}: {
+  rows: RankedCampaign[];
+  filters: ReturnType<typeof parseCampaignAdvancedFilters>;
+  metadataByKey: Map<string, KlaviyoCampaign>;
+  messagesByKey: Map<string, KlaviyoCampaignMessage[]>;
+}) {
+  return rows.filter((row) => {
+    const key = buildKlaviyoMetadataKey(row.region_id, row.campaign_id);
+    const metadata = metadataByKey.get(key);
+    const messages = messagesByKey.get(key) || [];
+    const status = getCampaignStatusLabel(metadata);
+    const hasAbTest = campaignHasAbTest({ row, metadata, messages });
+
+    if (!optionMatches(filters.status, [status])) {
+      return false;
+    }
+
+    if (!optionMatches(filters.channel, getCampaignChannels(metadata, messages))) {
+      return false;
+    }
+
+    if (!optionMatches(filters.audience, getCampaignAudienceIds(metadata))) {
+      return false;
+    }
+
+    if (!optionMatches(filters.tag, getCampaignTagIds(metadata))) {
+      return false;
+    }
+
+    if (filters.abTest === "ab" && !hasAbTest) {
+      return false;
+    }
+
+    if (filters.abTest === "single" && hasAbTest) {
+      return false;
+    }
+
+    if (filters.archived === "archived" && metadata?.archived !== true) {
+      return false;
+    }
+
+    if (filters.archived === "active" && metadata?.archived === true) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
 function formatTimestampParts(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -329,6 +486,46 @@ function FilterButton({
     >
       {children}
     </button>
+  );
+}
+
+function FilterSelect({
+  name,
+  value,
+  options,
+  ariaLabel,
+  wide = false,
+  dotted = false,
+}: {
+  name: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  ariaLabel: string;
+  wide?: boolean;
+  dotted?: boolean;
+}) {
+  return (
+    <span className={clsx("relative inline-flex", wide ? "min-w-[170px]" : "min-w-fit")}>
+      <select
+        aria-label={ariaLabel}
+        name={name}
+        defaultValue={value}
+        className={clsx(
+          "h-9 w-full appearance-none rounded-[7px] border bg-white pl-3 pr-9 text-sm font-medium text-[#62666d] transition hover:bg-[#fafafa]",
+          dotted ? "border-dashed border-[#d5d9df]" : "border-[#d8dde3]",
+        )}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        aria-hidden="true"
+        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+      />
+    </span>
   );
 }
 
@@ -438,12 +635,24 @@ export default async function CampaignsPage({ searchParams }: CampaignPageProps)
     defaultSort: "date_desc",
     defaultFilter: "all",
   });
-  const campaignRows = filterAndSortKlaviyoSimpleRows(data.campaignRows, campaignTableState);
+  const campaignAdvancedFilters = parseCampaignAdvancedFilters(rawSearchParams);
   const performanceMetrics = buildCampaignMetrics({ rows: data.campaignRows, filters });
   const [campaignMetadataByKey, campaignMessagesByKey] = await Promise.all([
     getCampaignMetadataByReportRows(data.campaignRows),
     getCampaignMessagesByReportRows(data.campaignRows),
   ]);
+  const sortedCampaignRows = filterAndSortKlaviyoSimpleRows(data.campaignRows, campaignTableState);
+  const campaignRows = filterCampaignRowsByMetadata({
+    rows: sortedCampaignRows,
+    filters: campaignAdvancedFilters,
+    metadataByKey: campaignMetadataByKey,
+    messagesByKey: campaignMessagesByKey,
+  });
+  const campaignFilterOptions = buildCampaignFilterOptions({
+    rows: data.campaignRows,
+    metadataByKey: campaignMetadataByKey,
+    messagesByKey: campaignMessagesByKey,
+  });
   const hiddenDashboardFields = buildDashboardHiddenFields(filters);
   const dateRangeLabel = getDateRangeLabel(filters);
 
@@ -540,36 +749,128 @@ export default async function CampaignsPage({ searchParams }: CampaignPageProps)
 
               <div>
                 <p className="mb-1 text-sm font-medium text-[#62666d]">Date range</p>
-                <FilterButton>
-                  <span className="inline-flex items-center gap-2">
-                    <CalendarDays aria-hidden="true" className="h-4 w-4 text-[#62666d]" />
-                    {dateRangeLabel}
-                  </span>
-                  <ChevronDown aria-hidden="true" className="h-4 w-4" />
-                </FilterButton>
+                <span className="relative inline-flex min-w-[170px]">
+                  <CalendarDays
+                    aria-hidden="true"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                  />
+                  <select
+                    aria-label="Date range"
+                    name="preset"
+                    defaultValue={filters.preset}
+                    className="h-9 w-full appearance-none rounded-[7px] border border-[#d8dde3] bg-white pl-9 pr-9 text-sm font-medium text-[#62666d] transition hover:bg-[#fafafa]"
+                  >
+                    <option value="today">Today</option>
+                    <option value="yesterday">Yesterday</option>
+                    <option value="last7">Last 7 days</option>
+                    <option value="last30">Last 30 days</option>
+                    <option value="thisMonth">This month</option>
+                    <option value="lastMonth">Last month</option>
+                    <option value="custom">{dateRangeLabel}</option>
+                  </select>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                  />
+                </span>
               </div>
 
-              {filterLabels.map((label) => (
-                <FilterButton key={label} dotted>
-                  {label}
-                  {label !== "A/B test" && label !== "Archived" ? (
-                    <ChevronDown aria-hidden="true" className="h-4 w-4" />
-                  ) : null}
-                </FilterButton>
-              ))}
+              {filters.preset === "custom" ? (
+                <>
+                  <input
+                    aria-label="Start date"
+                    name="start"
+                    type="date"
+                    defaultValue={filters.startDate}
+                    className="h-9 rounded-[7px] border border-[#d8dde3] bg-white px-3 text-sm font-medium text-[#62666d]"
+                  />
+                  <input
+                    aria-label="End date"
+                    name="end"
+                    type="date"
+                    defaultValue={filters.endDate}
+                    className="h-9 rounded-[7px] border border-[#d8dde3] bg-white px-3 text-sm font-medium text-[#62666d]"
+                  />
+                </>
+              ) : null}
 
+              <FilterSelect
+                ariaLabel="Filter by audience"
+                name="campaignAudience"
+                value={campaignAdvancedFilters.audience}
+                options={campaignFilterOptions.audienceOptions}
+                dotted
+                wide
+              />
+              <FilterSelect
+                ariaLabel="Filter by channel"
+                name="campaignChannel"
+                value={campaignAdvancedFilters.channel}
+                options={campaignFilterOptions.channelOptions}
+                dotted
+              />
+              <FilterSelect
+                ariaLabel="Filter by status"
+                name="campaignStatus"
+                value={campaignAdvancedFilters.status}
+                options={campaignFilterOptions.statusOptions}
+                dotted
+              />
+              <FilterSelect
+                ariaLabel="Filter by tags"
+                name="campaignTag"
+                value={campaignAdvancedFilters.tag}
+                options={campaignFilterOptions.tagOptions}
+                dotted
+                wide
+              />
+              <FilterSelect
+                ariaLabel="Filter by A/B test"
+                name="campaignAbTest"
+                value={campaignAdvancedFilters.abTest}
+                options={[
+                  { value: "all", label: "A/B test: All" },
+                  { value: "ab", label: "A/B tests only" },
+                  { value: "single", label: "Non A/B only" },
+                ]}
+                dotted
+              />
+              <FilterSelect
+                ariaLabel="Filter archived campaigns"
+                name="campaignArchived"
+                value={campaignAdvancedFilters.archived}
+                options={[
+                  { value: "all", label: "Archived: All" },
+                  { value: "active", label: "Active only" },
+                  { value: "archived", label: "Archived only" },
+                ]}
+                dotted
+              />
+              <FilterSelect
+                ariaLabel="Filter by performance"
+                name={campaignFieldNames.filter}
+                value={campaignTableState.filter}
+                options={klaviyoSimpleTableFilterOptions}
+                wide
+              />
+              <FilterSelect
+                ariaLabel="Sort campaigns"
+                name={campaignFieldNames.sort}
+                value={campaignTableState.sort}
+                options={klaviyoSimpleTableSortOptions}
+                wide
+              />
               <FilterButton wide>
                 <span className="inline-flex items-center gap-2">
                   <ShoppingBag aria-hidden="true" className="h-4 w-4 text-[#63a244]" />
                   Placed Order
                 </span>
-                <ChevronDown aria-hidden="true" className="h-4 w-4" />
               </FilterButton>
             </div>
 
             <button
-              type="button"
-              aria-label="Table display settings"
+              type="submit"
+              aria-label="Apply campaign table filters"
               className="inline-flex h-9 w-9 items-center justify-center self-start rounded-[7px] text-[#2e3136] hover:bg-[#f3f4f6] xl:self-end"
             >
               <SlidersHorizontal aria-hidden="true" className="h-5 w-5" />
