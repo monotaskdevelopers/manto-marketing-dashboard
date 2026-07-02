@@ -1,6 +1,6 @@
 /*
 File description:
-This page renders the internal sign-in screen and redirects already-authenticated users to the dashboard.
+This page renders the internal sign-in screen and redirects already-authenticated users to `/dashboard`.
 It is intentionally simple because access control is handled by Supabase Auth and protected server routes.
 */
 
@@ -16,7 +16,7 @@ export default async function LoginPage({
   const user = await getCurrentUser();
 
   if (user) {
-    redirect("/");
+    redirect("/dashboard");
   }
 
   const resolvedSearchParams = await searchParams;

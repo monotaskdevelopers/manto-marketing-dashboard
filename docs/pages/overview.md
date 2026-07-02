@@ -1,50 +1,33 @@
 <!--
 File description:
-This file documents the Overview Dashboard page. It explains the page purpose, contents, user-facing
-features, security concerns, and current limitations so changes to the main dashboard remain intentional.
+This file documents the Dashboard page. It explains the current blank redesign state, route behavior,
+security expectations, and the future purpose of the main dashboard workspace.
 -->
 
-# Overview Dashboard
+# Dashboard
 
 ## Purpose
 
-Give internal users a fast summary of Shopify and Klaviyo performance across selected regions and dates.
+Hold the primary authenticated workspace at `/dashboard` while the dashboard UI is redesigned from the
+ground up.
 
 ## Contents
 
-- Total Shopify revenue.
-- Total orders.
-- Average order value.
-- Customers.
-- Klaviyo-attributed revenue.
-- Klaviyo revenue share.
-- Campaign revenue.
-- Flow revenue.
-- Revenue trend.
-- Top regions.
-- Top campaigns.
-- Top flows.
+- No page-specific body content during the redesign reset.
+- The shared authenticated app shell remains visible.
+- The root `/` route redirects to `/dashboard` for older bookmarks.
 
 ## Features
 
-- Region filter.
-- Date range filter.
-- Carded filter controls using shared custom select and date input components.
-- Plain-language tooltip explanations on every KPI card.
-- Plain-language tooltip explanations on each table column.
-- Table-header search, filter, sort, apply, and reset controls for top regions, top campaigns, and top flows.
-- Scoped URL query parameters preserve each overview table's state independently.
-- Revenue trend tooltip explaining Shopify bars and Klaviyo overlay calculation.
-- Last sync status.
-- Manual sync action.
+- Top-level sidebar placement outside the Analytics dropdown.
+- Protected by the shared dashboard layout.
+- Does not query analytics data while blank.
 
 ## Security Concerns
 
 - Must require authentication.
-- Must not expose platform API credentials.
-- Must label attributed revenue clearly to avoid financial misinterpretation.
+- Must not expose platform API credentials or reporting data while the page is blank.
 
 ## Known Gaps
 
-- Currency conversion is not included in MVP.
-- CSV export is not included in the initial implementation.
+- Dashboard metrics, filters, tables, and charts need to be rebuilt in the next UI pass.

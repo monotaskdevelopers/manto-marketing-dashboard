@@ -1,45 +1,30 @@
 <!--
 File description:
-This file documents the Flows page. It explains the automated flow reporting table, metrics, risks, and
-MVP limitations.
+This file documents the Flows page. It explains the current blank redesign state and the future scope for
+the top-level flow reporting route.
 -->
 
-# Flows Dashboard
+# Flows
 
 ## Purpose
 
-Help the team understand which automated Klaviyo flows are driving revenue and engagement.
+Preserve `/flows` while the automation reporting UI is redesigned.
 
 ## Contents
 
-- Flow name.
-- Region.
-- Message type indicator.
-- Automation status.
-- Last activity date.
-- Revenue.
-- Recipients.
-- Open rate.
-- Click rate.
-- Conversion rate.
-- Revenue per recipient.
+- No page-specific body content during the redesign reset.
+- The shared authenticated app shell remains visible.
 
 ## Features
 
-- Date range filter.
-- Region filter.
-- Klaviyo-inspired top toolbar using the same design language as Campaigns.
-- Flat performance band for average open rate, average click rate, placed order rate, and revenue per recipient.
-- Compact URL-driven controls for search, date preset, audience/region, status-style row filters, and metric sorting.
-- Feedback strip and dense row table styling aligned with the Campaigns reference.
-- Mobile-safe horizontal table scrolling for dense flow rows.
+- Protected route remains available for compatibility.
+- Does not query flow analytics data while blank.
 
 ## Security Concerns
 
 - Must require authentication.
-- Must not expose Klaviyo API keys.
+- Must not expose Klaviyo API keys or raw flow payloads.
 
 ## Known Gaps
 
-- Flow editing and journey management are out of scope.
-- Calendar view and create-flow actions are visual placeholders until flow management is implemented.
+- Flow toolbar, filters, metrics, and table views need to be rebuilt or retired in favor of the nested Klaviyo route.

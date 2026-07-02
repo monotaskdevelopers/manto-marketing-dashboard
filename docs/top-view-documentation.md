@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Authenticated internal users can view high-level summaries, drill into campaign and flow reports, filter by date range and region, and refresh data automatically every hour or manually on demand. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, and flow data for future reporting, sorting, filtering, and searching.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. The report pages are currently blank redesign placeholders except for Settings, which remains operational for platform connections. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, and flow data for future reporting, sorting, filtering, and searching.
 
 ## Documentation Index
 
@@ -32,7 +32,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 | `/docs/tests.md` | Temporary/testing register | Demo mode, test-only switches, and temporary behavior that must be reviewed before production. |
 | `/docs/components.md` | Component inventory | Reusable components, file paths, and one-line descriptions. |
 | `/docs/pages/login.md` | Login page doc | Purpose, contents, features, risks, and known gaps for the internal sign-in page. |
-| `/docs/pages/overview.md` | Overview page doc | Purpose, contents, features, risks, and known gaps for the main dashboard page. |
+| `/docs/pages/overview.md` | Dashboard page doc | Purpose, current blank redesign state, route behavior, risks, and known gaps for the main `/dashboard` page. |
 | `/docs/pages/regional-performance.md` | Regional page doc | Purpose, contents, features, risks, and known gaps for region comparison. |
 | `/docs/pages/shopify.md` | Shopify page doc | Purpose, contents, features, risks, and known gaps for ecommerce reporting. |
 | `/docs/pages/shopify-regional-performance.md` | Shopify regional page doc | Purpose, contents, features, risks, and known gaps for the nested `/shopify/regional` report. |
@@ -50,7 +50,8 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Database and auth: Supabase.
 - Data sources: Shopify Admin GraphQL API and Klaviyo APIs.
 - Sync frequency: Vercel Cron calls the sync route every hour.
-- Manual sync: authenticated internal users can trigger a fresh sync from the dashboard.
+- Manual sync: authenticated internal users can trigger a fresh sync from the shared dashboard shell.
+- UI reset: all authenticated report pages except Settings are intentionally blank placeholders while the new experience is designed.
 - Klaviyo comprehensive sync: stores profiles, audiences, memberships, metrics, events, tags, campaigns, flows, and raw JSON payloads in authenticated Supabase tables.
 - Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 

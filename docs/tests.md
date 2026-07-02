@@ -14,6 +14,7 @@ behavior.
 | `DEMO_MODE=true` | `src/lib/data/demo-data.ts` and data access functions | Allows local UI review when Supabase and platform credentials are not configured. | Must be `false` or unset in production. |
 | Manual sync range cap | `src/app/api/sync/route.ts` | Prevents excessive manual sync windows. | Keep and tune based on real usage. |
 | Settings credential entry | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Lets local/staging users connect Shopify and Klaviyo credentials separately through guided modals. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
+| Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
 
 ## Verification Plan
 
@@ -23,7 +24,7 @@ behavior.
 - Verify protected dashboard routes redirect unauthenticated users to login.
 - Verify cron route rejects missing or invalid `CRON_SECRET`.
 - Verify manual sync rejects unauthenticated requests.
-- Verify dashboard shows an empty state when no data is synced yet.
+- Verify `/dashboard` and report routes intentionally render only the shared app shell while blank placeholders are active.
 - Verify Settings rejects unauthenticated users through dashboard auth.
 - Verify Settings does not render saved platform secret values.
 - Verify the Shopify connect button opens the Shopify step-by-step modal.

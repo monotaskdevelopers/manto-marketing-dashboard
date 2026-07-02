@@ -1,46 +1,30 @@
 <!--
 File description:
-This file documents the Campaigns page. It explains the campaign table, required fields, security posture,
-and MVP limitations for campaign analytics.
+This file documents the Campaigns page. It explains the current blank redesign state and the future scope
+for the top-level campaign reporting route.
 -->
 
-# Campaigns Dashboard
+# Campaigns
 
 ## Purpose
 
-Help the team identify top-performing and underperforming Klaviyo campaigns across regions and dates.
+Preserve `/campaigns` while the campaign reporting UI is redesigned.
 
 ## Contents
 
-- Campaign name.
-- Region.
-- Message type indicator.
-- Delivery status.
-- Send date.
-- Recipients.
-- Open rate.
-- Click rate.
-- Conversion rate.
-- Orders/conversions attributed to campaign.
-- Revenue attributed to campaign.
-- Revenue per recipient.
+- No page-specific body content during the redesign reset.
+- The shared authenticated app shell remains visible.
 
 ## Features
 
-- Date range filter.
-- Region filter.
-- Klaviyo-inspired top toolbar with library, list/calendar, and create-action styling.
-- Flat performance band for average open rate, average click rate, placed order rate, and revenue per recipient.
-- Compact URL-driven controls for search, date preset, audience/region, status-style row filters, and metric sorting.
-- Feedback strip and row table styling that mirrors the provided Campaigns reference.
-- Mobile-safe horizontal table scrolling for dense campaign rows.
+- Protected route remains available for compatibility.
+- Does not query campaign analytics data while blank.
 
 ## Security Concerns
 
 - Must require authentication.
-- Must not expose Klaviyo API keys.
+- Must not expose Klaviyo API keys or raw campaign payloads.
 
 ## Known Gaps
 
-- Campaign creation, editing, and scheduling are out of scope.
-- Calendar view and create-campaign actions are visual placeholders until campaign management is implemented.
+- Campaign toolbar, filters, metrics, and table views need to be rebuilt or retired in favor of the nested Klaviyo route.

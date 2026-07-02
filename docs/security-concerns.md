@@ -132,8 +132,8 @@ Risk:
 Mitigation:
 
 - Keep the shared authenticated dashboard layout.
-- Add page-level `requireUser()` guards before Klaviyo report data fetches on `/klaviyo`, `/klaviyo/campaigns`, and `/klaviyo/flows`.
-- Continue adding page-level guards before server-side reporting queries on any new protected dashboard route.
+- Current blank report placeholders avoid page-level reporting queries.
+- Add page-level `requireUser()` guards before future server-side reporting queries on any rebuilt protected dashboard route.
 
 ### Dependency Audit Advisory
 

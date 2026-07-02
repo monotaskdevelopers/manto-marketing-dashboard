@@ -1,42 +1,30 @@
 <!--
 File description:
-This file documents the Regional Performance page. It explains how regional reporting works and records
-the risks around comparing regions with different currencies or account setups.
+This file documents the Regional Performance page. It explains the current blank redesign state and the
+security expectations that still apply while the route is preserved.
 -->
 
-# Regional Performance Dashboard
+# Regional Performance
 
 ## Purpose
 
-Compare Shopify and Klaviyo performance across regions.
+Preserve the `/regional` route while the regional comparison UI is redesigned.
 
 ## Contents
 
-- Region name.
-- Shopify revenue.
-- Orders.
-- Average order value.
-- Customers.
-- Klaviyo-attributed revenue.
-- Klaviyo revenue share.
-- Campaign revenue.
-- Flow revenue.
+- No page-specific body content during the redesign reset.
+- The shared authenticated app shell remains visible.
 
 ## Features
 
-- Date range filter.
-- Region selection.
-- Region ranking table.
-- Shared carded filter controls.
-- Plain-language tooltip explanations on every regional KPI and table column.
-- Region ranking table with structured column definitions and horizontal scrolling on small screens.
-- Table-header search, filter, sort, apply, and reset controls for the region ranking table.
+- Protected route remains available for compatibility.
+- Does not query regional analytics data while blank.
 
 ## Security Concerns
 
 - Must require authentication.
-- Must not show hidden or inactive regions unless intentionally enabled.
+- Must not show hidden, inactive, or cross-region reporting data until the new UI is intentionally rebuilt.
 
 ## Known Gaps
 
-- Cross-currency comparisons are informational only until currency conversion is defined.
+- Regional filters, KPI cards, ranking tables, and cross-currency guidance need to be rebuilt.

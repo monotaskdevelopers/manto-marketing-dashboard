@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function signInAction(formData: FormData) {
   if (isDemoMode()) {
-    redirect("/");
+    redirect("/dashboard");
   }
 
   const email = String(formData.get("email") || "").trim();
@@ -33,8 +33,8 @@ export async function signInAction(formData: FormData) {
     redirect("/login?error=invalid_login");
   }
 
-  revalidatePath("/", "layout");
-  redirect("/");
+  revalidatePath("/dashboard", "layout");
+  redirect("/dashboard");
 }
 
 export async function signOutAction() {
@@ -44,6 +44,6 @@ export async function signOutAction() {
 
   const supabase = await createClient();
   await supabase.auth.signOut();
-  revalidatePath("/", "layout");
+  revalidatePath("/dashboard", "layout");
   redirect("/login");
 }

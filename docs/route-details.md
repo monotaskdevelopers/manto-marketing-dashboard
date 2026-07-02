@@ -11,26 +11,27 @@ or route handlers are added, removed, renamed, or materially changed.
 | Route | Purpose | How it works | Importance |
 | --- | --- | --- | --- |
 | `/login` | Internal user sign-in | Uses Supabase email/password authentication through a minimal internal sign-in form. | Critical |
-| `/` | Overview dashboard | Shows high-level Shopify and Klaviyo metrics using URL filters. | Critical |
-| `/regional` | Regional comparison | Compares revenue, orders, AOV, and Klaviyo contribution by region. | High |
-| `/shopify` | Shopify reporting | Shows ecommerce revenue, orders, AOV, customers, and trend data. | High |
-| `/shopify/regional` | Shopify regional reporting | Reuses the regional comparison report under the nested Shopify navigation hierarchy. | High |
-| `/klaviyo` | Klaviyo reporting | Shows attributed revenue, engagement, campaign and flow rollups. | High |
-| `/klaviyo/campaigns` | Klaviyo campaign drill-down | Preserves dashboard date/region filters and adds campaign search, minimum revenue, engagement filtering, sort controls, charts, and a full campaign table. | High |
-| `/klaviyo/flows` | Klaviyo flow drill-down | Preserves dashboard date/region filters and adds flow search, minimum revenue, engagement filtering, sort controls, charts, and a full flow table. | High |
-| `/campaigns` | Campaign reporting | Renders a Klaviyo-inspired campaign workspace with a toolbar, performance band, compact URL-driven controls, and campaign row table for the selected date/region scope. | High |
-| `/flows` | Flow reporting | Renders a Campaigns-matched automation workspace with flow performance metrics, compact URL-driven controls, and flow row table for the selected date/region scope. | High |
+| `/` | Dashboard redirect | Server-side redirect to `/dashboard` for older bookmarks and root visits after authentication. | Critical |
+| `/dashboard` | Main dashboard workspace | Intentionally blank protected workspace while the reporting UI is redesigned from the ground up. | Critical |
+| `/regional` | Regional comparison placeholder | Preserves the protected route but renders no page body during the redesign reset. | High |
+| `/shopify` | Shopify reporting placeholder | Preserves the protected Shopify overview route but renders no page body during the redesign reset. | High |
+| `/shopify/regional` | Shopify regional reporting placeholder | Reuses the blank `/regional` implementation under the nested Shopify navigation hierarchy. | High |
+| `/klaviyo` | Klaviyo reporting placeholder | Preserves the protected Klaviyo overview route but renders no page body during the redesign reset. | High |
+| `/klaviyo/campaigns` | Klaviyo campaign drill-down placeholder | Preserves the protected campaign drill-down route but renders no page body during the redesign reset. | High |
+| `/klaviyo/flows` | Klaviyo flow drill-down placeholder | Preserves the protected flow drill-down route but renders no page body during the redesign reset. | High |
+| `/campaigns` | Campaign reporting placeholder | Preserves the protected top-level campaign route but renders no page body during the redesign reset. | High |
+| `/flows` | Flow reporting placeholder | Preserves the protected top-level flow route but renders no page body during the redesign reset. | High |
 | `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
 
 ## Primary Sidebar Hierarchy
 
+- `Dashboard` links to `/dashboard` and sits outside the Analytics dropdown.
 - `Analytics`
-- `Analytics > Overview` links to `/` for the combined Shopify and Klaviyo analytics overview.
-- `Analytics > Klaviyo > Overview` links to `/klaviyo` for all connected Klaviyo account and region rollups.
-- `Analytics > Klaviyo > Campaigns` links to `/klaviyo/campaigns` for campaign-level search, filters, sort, charts, and detail tables.
-- `Analytics > Klaviyo > Flows` links to `/klaviyo/flows` for automation-level search, filters, sort, charts, and detail tables.
-- `Analytics > Shopify > Overview` links to `/shopify` for ecommerce source-of-truth reporting.
-- `Analytics > Shopify > Regional Performance` links to `/shopify/regional`, which reuses the same report as `/regional` for compatibility.
+- `Analytics > Klaviyo > Overview` links to `/klaviyo` for the future Klaviyo overview rebuild.
+- `Analytics > Klaviyo > Campaigns` links to `/klaviyo/campaigns` for the future campaign drill-down rebuild.
+- `Analytics > Klaviyo > Flows` links to `/klaviyo/flows` for the future automation drill-down rebuild.
+- `Analytics > Shopify > Overview` links to `/shopify` for the future ecommerce reporting rebuild.
+- `Analytics > Shopify > Regional Performance` links to `/shopify/regional`, which reuses the same blank placeholder as `/regional` for compatibility.
 - `Settings` remains separate from Analytics because it changes platform connections and encrypted credentials rather than reporting data.
 
 ## API Routes
@@ -45,7 +46,7 @@ or route handlers are added, removed, renamed, or materially changed.
 
 - All dashboard routes require Supabase authentication.
 - API routes that mutate data must verify auth or cron secret server-side.
-- Date and region filters should remain URL query parameters for shareable internal reporting links.
-- Analytics pages should render the page title/header first, then shared date and region filters, then KPI cards, charts, and tables unless a page-specific operational surface documents a different layout.
-- Analytics table filters should stay inside the table header, server-rendered, and URL-driven so reports remain shareable without exposing platform credentials or adding client-only reporting state.
-- Pages with multiple tables should use scoped query parameter names so one table's search, filter, and sort state does not overwrite another table's state.
+- Date and region filters should remain URL query parameters when analytics pages are rebuilt.
+- Analytics pages are intentionally blank during the UI reset, except Settings, which remains operational.
+- Future analytics table filters should stay inside the table header, server-rendered, and URL-driven so reports remain shareable without exposing platform credentials or adding client-only reporting state.
+- Future pages with multiple tables should use scoped query parameter names so one table's search, filter, and sort state does not overwrite another table's state.

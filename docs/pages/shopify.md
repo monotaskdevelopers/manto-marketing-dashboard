@@ -1,45 +1,30 @@
 <!--
 File description:
-This file documents the Shopify Dashboard page. It explains the source-of-truth ecommerce metrics shown
-on the page, the sync dependency, and current limitations of the MVP Shopify reporting layer.
+This file documents the Shopify page. It explains the current blank redesign state, source-of-truth
+expectations, and security posture for the future Shopify reporting surface.
 -->
 
-# Shopify Dashboard
+# Shopify
 
 ## Purpose
 
-Show ecommerce performance from Shopify as the source of truth for actual sales performance.
+Preserve the `/shopify` route while the ecommerce reporting UI is redesigned.
 
 ## Contents
 
-- Revenue.
-- Orders.
-- Average order value.
-- Customers.
-- Refund amount when available.
-- Cancelled orders when available.
-- Daily revenue trend.
-- Regional Shopify performance table.
+- No page-specific body content during the redesign reset.
+- The shared authenticated app shell remains visible.
 
 ## Features
 
-- Date range filter.
-- Region filter.
-- Trend bars.
-- Summary KPIs.
-- Shared carded filter controls.
-- Plain-language tooltip explanations on every Shopify KPI, trend, and table column.
-- Regional table with clearer row separation, numeric alignment, and mobile-safe horizontal scrolling.
-- Table-header search, filter, sort, apply, and reset controls for Shopify regional rows.
-- Nested Analytics sidebar placement for Shopify overview and `/shopify/regional` regional performance.
+- Protected route remains available under `Analytics > Shopify > Overview`.
+- Does not query Shopify reporting data while blank.
 
 ## Security Concerns
 
 - Shopify Admin API tokens must remain server-only.
-- Raw order and customer data should not be logged.
+- Raw order and customer data must not be logged or exposed to the browser.
 
 ## Known Gaps
 
-- Product/category performance is deferred unless the business confirms it is needed.
-- New vs returning customers may require additional Shopify queries and is deferred unless available cheaply.
-- Additional Shopify subroutes should only be added when a synced data source supports the page without placeholder analytics.
+- Shopify revenue, orders, AOV, refunds, trend charts, and regional tables need to be rebuilt.

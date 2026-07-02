@@ -21,6 +21,9 @@ The tool should reduce manual spreadsheet compilation and make it easier to answ
 
 ## MVP Scope
 
+Current implementation note: the reporting pages are intentionally blank during the UI redesign reset,
+except for Settings. The scope below remains the target product scope for the rebuilt pages.
+
 In scope:
 
 - Overview dashboard.

@@ -1,8 +1,8 @@
 /*
 File description:
-This client-side navigation component renders the dashboard's nested analytics hierarchy with active-route
-styling. Keeping the route awareness here lets the server app shell stay responsible for authentication
-and sync metadata while the navigation still gives users a clear, grouped sense of location.
+This client-side navigation component renders the dashboard sidebar with a top-level Dashboard entry,
+nested analytics report groups, and active-route styling. Keeping route awareness here lets the server
+app shell stay responsible for authentication and sync metadata.
 */
 
 "use client";
@@ -38,13 +38,17 @@ type NavigationBranch = {
 
 type NavigationItem = NavigationLeaf | NavigationBranch;
 
-// Keep the visible sidebar hierarchy in one tree so desktop and mobile navigation cannot drift apart.
+// Primary workspace links stay outside report groups so users can return to the main dashboard quickly.
+const primaryNavigation: NavigationLeaf[] = [
+  { type: "link", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, exact: true },
+];
+
+// Keep analytics report hierarchy in one tree so desktop and mobile navigation cannot drift apart.
 const analyticsNavigation: NavigationBranch = {
   type: "group",
   label: "Analytics",
   icon: ChartNoAxesCombined,
   items: [
-    { type: "link", href: "/", label: "Overview", icon: LayoutDashboard, exact: true },
     {
       type: "group",
       label: "Klaviyo",
@@ -200,6 +204,9 @@ export function AppNavigation({
       )}
       aria-label="Dashboard navigation"
     >
+      {primaryNavigation.map((item) => (
+        <NavigationLink key={item.href} item={item} pathname={pathname} variant={variant} depth={0} />
+      ))}
       <NavigationGroup item={analyticsNavigation} pathname={pathname} variant={variant} />
       <div className="mt-2 border-t border-slate-200/80 pt-2">
         {utilityNavigation.map((item) => (

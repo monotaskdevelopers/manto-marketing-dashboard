@@ -1,39 +1,32 @@
 <!--
 File description:
-This file documents the Shopify Regional Performance page. It records why the same regional comparison
-report is available under the nested Shopify route and how that route should be treated in navigation.
+This file documents the Shopify Regional Performance page. It records the current blank redesign state and
+why the nested Shopify route remains available.
 -->
 
 # Shopify Regional Performance
 
 ## Purpose
 
-Show Shopify-owned regional performance reporting inside the `Analytics > Shopify` navigation hierarchy.
+Preserve `/shopify/regional` under the Shopify navigation group while the regional reporting UI is
+redesigned.
 
 ## Contents
 
-- Same regional comparison report as `/regional`.
-- Region name.
-- Shopify revenue.
-- Orders.
-- Average order value.
-- Klaviyo-attributed revenue.
-- Klaviyo revenue share.
-- Table-header search, filter, sort, apply, and reset controls.
+- No page-specific body content during the redesign reset.
+- Reuses the blank `/regional` page implementation.
 
 ## Features
 
 - Nested sidebar placement at `Analytics > Shopify > Regional Performance`.
-- Reuses the existing regional report implementation so `/shopify/regional` and `/regional` remain consistent.
-- Preserves date and region filters through URL query parameters.
-- Keeps table controls server-rendered and URL-driven.
+- Keeps `/shopify/regional` and `/regional` behavior aligned during the reset.
+- Does not query Shopify or regional analytics data while blank.
 
 ## Security Concerns
 
 - Must require dashboard authentication through the shared dashboard layout.
 - Must not expose Shopify or Klaviyo credentials.
-- Cross-currency comparisons are informational only until currency conversion is implemented.
 
 ## Known Gaps
 
-- Product, order, customer cohort, and channel-specific Shopify subroutes are not implemented until synced source data exists.
+- Shopify-owned regional metrics, filters, and ranking tables need to be rebuilt.

@@ -1,7 +1,7 @@
 /*
 File description:
-This authenticated app shell provides dashboard navigation, sync status, manual sync access, and sign-out.
-It wraps all protected pages so users get a consistent internal-tool layout without duplicating navigation.
+This authenticated app shell provides dashboard navigation, mobile navigation access, and sign-out. It
+wraps protected pages so route content can own page-specific headers without duplicating sidebar behavior.
 */
 
 import {
@@ -11,19 +11,13 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { signOutAction } from "@/app/auth/actions";
-import { formatDateTime } from "@/lib/format";
-import type { SyncRun } from "@/lib/types";
 import { AppNavigation } from "@/components/app-navigation";
-import { StatusBadge } from "@/components/status-badge";
-import { SyncButton } from "@/components/sync-button";
 import { buttonClassName } from "@/components/ui-controls";
 
 export function AppShell({
   children,
-  latestSync,
 }: {
   children: ReactNode;
-  latestSync: SyncRun | null;
 }) {
   return (
     <div className="min-h-screen bg-transparent">
@@ -65,26 +59,8 @@ export function AppShell({
         </div>
       </aside>
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-          <div className="flex flex-col gap-4 px-4 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-6">
-            <div>
-              <p className="text-sm font-semibold text-slate-950">Unified Shopify + Klaviyo reporting</p>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                {latestSync ? (
-                  <>
-                    <StatusBadge status={latestSync.status} />
-                    <span className="text-slate-500">
-                      Last sync: {formatDateTime(latestSync.finished_at || latestSync.started_at)}
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-slate-500">No sync has run yet.</span>
-                )}
-              </div>
-            </div>
-            <SyncButton />
-          </div>
-          <details className="group border-t border-slate-100 lg:hidden">
+        <header className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 backdrop-blur lg:hidden">
+          <details className="group">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-700 [&::-webkit-details-marker]:hidden">
               <span className="inline-flex items-center gap-2">
                 <Menu aria-hidden="true" className="h-4 w-4 text-slate-400" />

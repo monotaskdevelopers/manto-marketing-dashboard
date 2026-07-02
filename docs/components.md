@@ -9,7 +9,7 @@ component is created, renamed, moved, or removed.
 | Component | File path | Description |
 | --- | --- | --- |
 | `AppShell` | `/src/components/app-shell.tsx` | Shared authenticated layout with sidebar navigation, keyboard skip link, sync status, and logout. |
-| `AppNavigation` | `/src/components/app-navigation.tsx` | Client-side nested dashboard navigation with Analytics, Klaviyo, Shopify, and Settings sections plus active-route styling for sidebar and mobile views. |
+| `AppNavigation` | `/src/components/app-navigation.tsx` | Client-side dashboard navigation with a top-level Dashboard link, nested Analytics groups, Settings, and active-route styling for sidebar and mobile views. |
 | `FilterBar` | `/src/components/filter-bar.tsx` | Carded date range and region controls shared across dashboard pages. |
 | `MetricCard` | `/src/components/metric-card.tsx` | Compact KPI card for revenue, orders, rates, and counts with required plain-language calculation tooltip. |
 | `AutoSubmitForm` | `/src/components/auto-submit-form.tsx` | Client-side wrapper that auto-submits select changes for compact URL-driven table toolbars while preserving normal form semantics. |
