@@ -41,13 +41,31 @@ export function DataTable<T>({
   columns,
   rows,
   emptyMessage,
+  title,
+  description,
+  actions,
+  rowSummary,
 }: {
   columns: DataTableColumn<T>[];
   rows: T[];
   emptyMessage: string;
+  title?: string;
+  description?: string;
+  actions?: ReactNode;
+  rowSummary?: string;
 }) {
   return (
-    <div className="w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white shadow-sm shadow-slate-200/60">
+    <div className="w-full min-w-0 max-w-full rounded-lg border border-slate-200 bg-white">
+      {title || description || actions || rowSummary ? (
+        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            {title ? <h2 className="text-base font-semibold text-slate-950">{title}</h2> : null}
+            {description ? <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p> : null}
+            {rowSummary ? <p className="mt-1 text-xs font-semibold text-slate-400">{rowSummary}</p> : null}
+          </div>
+          {actions ? <div className="shrink-0">{actions}</div> : null}
+        </div>
+      ) : null}
       <div className="max-w-full overflow-x-auto">
         <table className="min-w-full border-separate border-spacing-0 text-sm">
           <thead>
@@ -57,7 +75,7 @@ export function DataTable<T>({
                   key={column.header}
                   scope="col"
                   className={clsx(
-                    "whitespace-nowrap border-b border-slate-200 bg-slate-50 px-4 py-3 font-semibold text-slate-600",
+                    "whitespace-nowrap border-b border-slate-200 bg-slate-50/80 px-4 py-3 font-semibold text-slate-600",
                     column.align === "right" ? "text-right" : "text-left",
                   )}
                 >
@@ -79,7 +97,7 @@ export function DataTable<T>({
               rows.map((row, rowIndex) => (
                 <tr
                   key={getStableRowKey(row, rowIndex)}
-                  className="transition duration-150 odd:bg-white even:bg-slate-50/45 hover:bg-teal-50/55"
+                  className="transition duration-150 odd:bg-white even:bg-slate-50/35 hover:bg-slate-50"
                 >
                   {columns.map((column) => (
                     <td

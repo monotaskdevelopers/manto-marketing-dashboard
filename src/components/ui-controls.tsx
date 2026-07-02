@@ -14,15 +14,15 @@ type ButtonSize = "sm" | "md" | "lg";
 
 const buttonVariants: Record<ButtonVariant, string> = {
   primary:
-    "border border-slate-950 bg-slate-950 text-white shadow-sm shadow-slate-950/10 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-500",
+    "border border-slate-950 bg-slate-950 text-white hover:bg-slate-800 disabled:border-slate-300 disabled:bg-slate-300 disabled:text-slate-500",
   secondary:
-    "border border-slate-200 bg-white text-slate-800 shadow-sm shadow-slate-200/70 hover:-translate-y-0.5 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:text-slate-400",
+    "border border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-950 disabled:text-slate-400",
   soft:
-    "border border-teal-100 bg-teal-50 text-teal-800 shadow-sm shadow-teal-100/60 hover:-translate-y-0.5 hover:border-teal-200 hover:bg-teal-100 disabled:text-teal-300",
+    "border border-teal-100 bg-teal-50 text-teal-800 hover:border-teal-200 hover:bg-teal-100 disabled:text-teal-300",
   ghost:
     "border border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-950 disabled:text-slate-400",
   danger:
-    "border border-rose-200 bg-white text-rose-700 hover:-translate-y-0.5 hover:bg-rose-50 disabled:text-rose-300",
+    "border border-rose-200 bg-white text-rose-700 hover:bg-rose-50 disabled:text-rose-300",
 };
 
 const buttonSizes: Record<ButtonSize, string> = {
@@ -32,7 +32,7 @@ const buttonSizes: Record<ButtonSize, string> = {
 };
 
 export const inputControlClassName =
-  "h-11 w-full rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-sm shadow-slate-200/40 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
+  "h-11 w-full rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-300 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500";
 
 export function buttonClassName({
   variant = "primary",

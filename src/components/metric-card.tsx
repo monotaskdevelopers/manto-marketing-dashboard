@@ -31,7 +31,7 @@ export function MetricCard({
   accent?: keyof typeof accentClasses;
 }) {
   return (
-    <article className="group rounded-lg border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60 transition duration-150 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+    <article className="group rounded-lg border border-slate-200 bg-white p-4 transition duration-150 hover:border-slate-300">
       <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">

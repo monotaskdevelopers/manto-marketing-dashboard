@@ -17,15 +17,12 @@ export function FilterBar({
   return (
     <section className="px-4 pt-5 lg:px-6">
       <form
-        className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm shadow-slate-200/60"
+        className="rounded-lg border border-slate-200 bg-white p-3"
         method="get"
       >
         <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <p className="text-sm font-semibold text-slate-950">Report filters</p>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              Filters update the URL so the same report view can be shared.
-            </p>
           </div>
           <div className="grid flex-1 gap-3 sm:grid-cols-2 lg:grid-cols-5 xl:max-w-5xl">
             <div className="flex min-w-0 flex-col gap-1.5">

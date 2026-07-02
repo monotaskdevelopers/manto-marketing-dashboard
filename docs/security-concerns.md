@@ -103,6 +103,19 @@ Mitigation:
 - Display currency context.
 - Avoid claiming cross-currency totals are financial source-of-truth until conversion is defined.
 
+### Protected Page Data Fetch Before Redirect
+
+Risk:
+
+- App Router can begin child page data work while a protected layout is resolving an auth redirect.
+- If a protected report page fetches data before its own auth guard, unauthenticated requests can create noisy server errors or unnecessary reporting-table reads.
+
+Mitigation:
+
+- Keep the shared authenticated dashboard layout.
+- Add page-level `requireUser()` guards before Klaviyo report data fetches on `/klaviyo`, `/klaviyo/campaigns`, and `/klaviyo/flows`.
+- Continue adding page-level guards before server-side reporting queries on any new protected dashboard route.
+
 ### Dependency Audit Advisory
 
 Risk:

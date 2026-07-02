@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is a basic internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. The first version stays intentionally simple: authenticated internal users can view reports by date range and region, and data is refreshed automatically every hour or manually on demand.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Authenticated internal users can view high-level summaries, drill into campaign and flow reports, filter by date range and region, and refresh data automatically every hour or manually on demand.
 
 ## Documentation Index
 
@@ -36,6 +36,8 @@ This project is a basic internal reporting dashboard that combines Shopify sales
 | `/docs/pages/regional-performance.md` | Regional page doc | Purpose, contents, features, risks, and known gaps for region comparison. |
 | `/docs/pages/shopify.md` | Shopify page doc | Purpose, contents, features, risks, and known gaps for ecommerce reporting. |
 | `/docs/pages/klaviyo.md` | Klaviyo page doc | Purpose, contents, features, risks, and known gaps for email reporting. |
+| `/docs/pages/klaviyo-campaign-performance.md` | Klaviyo campaign drill-down doc | Purpose, contents, features, risks, and known gaps for the `/klaviyo/campaigns` granular campaign report. |
+| `/docs/pages/klaviyo-flow-performance.md` | Klaviyo flow drill-down doc | Purpose, contents, features, risks, and known gaps for the `/klaviyo/flows` granular automation report. |
 | `/docs/pages/campaigns.md` | Campaigns page doc | Purpose, contents, features, risks, and known gaps for campaign reporting. |
 | `/docs/pages/flows.md` | Flows page doc | Purpose, contents, features, risks, and known gaps for flow reporting. |
 | `/docs/pages/settings.md` | Settings page doc | Purpose, contents, features, risks, and known gaps for platform connection management. |

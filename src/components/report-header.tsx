@@ -24,7 +24,7 @@ export function ReportHeader({
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">{description}</p>
       </div>
       {meta ? (
-        <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500 shadow-sm shadow-slate-200/60">
+        <span className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500">
           {meta}
         </span>
       ) : null}

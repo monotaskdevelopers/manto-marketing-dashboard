@@ -15,6 +15,8 @@ or route handlers are added, removed, renamed, or materially changed.
 | `/regional` | Regional comparison | Compares revenue, orders, AOV, and Klaviyo contribution by region. | High |
 | `/shopify` | Shopify reporting | Shows ecommerce revenue, orders, AOV, customers, and trend data. | High |
 | `/klaviyo` | Klaviyo reporting | Shows attributed revenue, engagement, campaign and flow rollups. | High |
+| `/klaviyo/campaigns` | Klaviyo campaign drill-down | Preserves dashboard date/region filters and adds campaign search, minimum revenue, engagement filtering, sort controls, charts, and a full campaign table. | High |
+| `/klaviyo/flows` | Klaviyo flow drill-down | Preserves dashboard date/region filters and adds flow search, minimum revenue, engagement filtering, sort controls, charts, and a full flow table. | High |
 | `/campaigns` | Campaign reporting | Lists campaign-level performance across regions and dates. | High |
 | `/flows` | Flow reporting | Lists automated flow performance across regions and dates. | High |
 | `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
@@ -32,3 +34,4 @@ or route handlers are added, removed, renamed, or materially changed.
 - All dashboard routes require Supabase authentication.
 - API routes that mutate data must verify auth or cron secret server-side.
 - Date and region filters should remain URL query parameters for shareable internal reporting links.
+- Drill-down table filters should stay server-rendered and URL-driven so reports remain shareable without exposing platform credentials or adding client-only reporting state.
