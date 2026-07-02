@@ -316,7 +316,16 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
     };
   }
 
-  const configs = getRegionConfigs();
+  const configs = await getRegionConfigs();
+
+  if (!configs.length) {
+    return {
+      syncRunId: "not-started",
+      status: "failed",
+      message: "No active regions have both Shopify and Klaviyo connected.",
+    };
+  }
+
   const runningSync = await findRunningSync();
 
   if (runningSync) {

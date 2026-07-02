@@ -50,6 +50,14 @@ Recommended protection:
 - Reject missing or invalid authorization.
 - Do not expose detailed stack traces in responses.
 
+### Settings Server Actions
+
+Recommended protection:
+
+- Require authenticated Supabase user.
+- Do not call Shopify or Klaviyo on every keystroke or page load.
+- If future "test connection" buttons are added, rate limit them per user and region.
+
 ## Future Improvements
 
 - Store manual sync cooldowns in Supabase if multiple app instances are used.

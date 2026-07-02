@@ -13,6 +13,7 @@ behavior.
 | --- | --- | --- | --- |
 | `DEMO_MODE=true` | `src/lib/data/demo-data.ts` and data access functions | Allows local UI review when Supabase and platform credentials are not configured. | Must be `false` or unset in production. |
 | Manual sync range cap | `src/app/api/sync/route.ts` | Prevents excessive manual sync windows. | Keep and tune based on real usage. |
+| Settings credential entry | `/src/app/(dashboard)/settings/page.tsx` | Lets local/staging users connect platform credentials for testing. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
 
 ## Verification Plan
 
@@ -23,6 +24,10 @@ behavior.
 - Verify cron route rejects missing or invalid `CRON_SECRET`.
 - Verify manual sync rejects unauthenticated requests.
 - Verify dashboard shows an empty state when no data is synced yet.
+- Verify Settings rejects unauthenticated users through dashboard auth.
+- Verify Settings does not render saved platform secret values.
+- Verify disconnect nulls encrypted secret columns.
+- Verify sync ignores inactive or incomplete platform connections.
 
 ## Verification Completed
 

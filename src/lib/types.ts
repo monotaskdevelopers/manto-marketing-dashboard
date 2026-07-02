@@ -108,6 +108,26 @@ export type RegionIntegrationConfig = {
   klaviyoConversionMetricId?: string;
 };
 
+export type PlatformConnectionSummary = {
+  id: string | null;
+  regionId: string;
+  slug: string;
+  name: string;
+  currencyCode: string;
+  timezone: string;
+  isActive: boolean;
+  shopifyShopDomain: string | null;
+  shopifyConnected: boolean;
+  shopifyConnectedAt: string | null;
+  shopifyDisconnectedAt: string | null;
+  klaviyoAccountLabel: string | null;
+  klaviyoConnected: boolean;
+  klaviyoConnectedAt: string | null;
+  klaviyoDisconnectedAt: string | null;
+  klaviyoConversionMetricId: string | null;
+  updatedAt: string | null;
+};
+
 export type RegionalSummary = {
   region: RegionRow;
   shopifyRevenue: number;

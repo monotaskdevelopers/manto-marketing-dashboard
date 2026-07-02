@@ -17,6 +17,8 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Protect cron sync with `CRON_SECRET`.
 - Protect manual sync with authenticated Supabase session checks.
 - Avoid logging customer data, order details, emails, tokens, or API payloads.
+- Store Shopify and Klaviyo secrets encrypted in `platform_connections`, not in JSON env config.
+- Keep `APP_ENCRYPTION_KEY` server-only and outside Supabase.
 
 ## Known Risks
 
@@ -34,16 +36,33 @@ Future mitigation:
 
 - Add organization/role-scoped access if the dashboard expands beyond a small internal group.
 
-### Platform Secrets In Environment Variables
+### Platform Secrets In Settings Database
 
 Risk:
 
-- Incorrect variable naming could expose secrets to the browser.
+- Platform credentials are sensitive even when stored for operator convenience.
+- A direct database leak must not reveal plain Shopify or Klaviyo secrets.
 
 Mitigation:
 
-- Only public Supabase URL and publishable key use `NEXT_PUBLIC_`.
-- Shopify tokens, Klaviyo keys, Supabase secret key, and cron secret must never use `NEXT_PUBLIC_`.
+- Encrypt platform secrets before saving them to Supabase.
+- Store only ciphertext in `platform_connections`.
+- Keep `APP_ENCRYPTION_KEY` in server-only environment variables.
+- Never grant browser clients direct access to `platform_connections`.
+- Never render saved secret values back to the Settings page.
+
+### Settings Page Access
+
+Risk:
+
+- In MVP, any signed-in internal user can connect or disconnect platform accounts.
+
+Mitigation:
+
+- Require Supabase authentication for `/settings`.
+- Keep all mutations in server actions.
+- Track `created_by` and `updated_by` user IDs in `platform_connections`.
+- Add admin-only RBAC before opening the tool to a broader internal audience.
 
 ### Manual Sync Abuse
 
@@ -87,6 +106,8 @@ Mitigation:
 - Confirm Supabase email domain restrictions or invitation-only signup.
 - Rotate platform tokens before production if they were used in local testing.
 - Review Supabase RLS policies with real project settings.
+- Confirm `platform_connections` remains service-role-only.
+- Confirm `APP_ENCRYPTION_KEY` backup and rotation procedure before production.
 - Add deployment-level security headers if missing.
 - Add audit logging for manual sync trigger user IDs if leadership needs traceability.
 - Re-check the dependency audit and upgrade Next.js when a safe patched release is available.

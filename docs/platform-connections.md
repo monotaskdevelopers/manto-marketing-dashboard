@@ -1,29 +1,47 @@
 <!--
 File description:
-This developer guide explains how Shopify and Klaviyo are connected to the internal reporting dashboard.
-It covers the plain-English connection model, required platform permissions, environment variable setup,
-sync flow, smoke tests, troubleshooting, token rotation, and security rules for maintaining the integration.
+This developer guide explains the database-backed Shopify and Klaviyo connection model for the dashboard.
+It covers the settings page workflow, encrypted credential storage, platform key creation steps, disconnect
+behavior, sync behavior, troubleshooting, and security rules for future developers.
 -->
 
 # Platform Connections
 
 ## Plain-English Overview
 
-This dashboard does not connect to Shopify or Klaviyo from the browser. It stores private platform
-credentials in server-only environment variables, runs a background sync on the server, saves normalized
-reporting rows into Supabase, and then shows those saved rows in the dashboard.
+Shopify and Klaviyo accounts should be connected from the dashboard Settings page, not by editing a JSON
+environment variable. An internal user enters the region details and platform credentials in the Settings
+page. The server encrypts the sensitive keys, saves them in Supabase, and only decrypts them later inside
+server-only sync code.
+
+The browser never receives Shopify tokens or Klaviyo private keys.
 
 The flow is:
 
-1. A developer creates or collects one Shopify Admin API token and one Klaviyo private API key for each region.
-2. The developer stores those credentials in `REGION_CONFIG_JSON`.
-3. Vercel Cron calls `/api/cron/hourly-sync` once per hour.
-4. Internal users can click the manual sync button, which calls `/api/sync`.
-5. The sync service fetches Shopify order data and Klaviyo campaign/flow reporting data.
-6. The sync service writes clean, summarized rows to Supabase.
-7. Dashboard pages read Supabase rows instead of calling Shopify or Klaviyo directly.
+1. Internal user opens `/settings`.
+2. User follows the on-page Shopify and Klaviyo setup guides.
+3. User enters the region details, Shopify shop domain, Shopify Admin API token, Klaviyo private key, and optional Klaviyo conversion metric ID.
+4. A server action validates the authenticated user.
+5. The server encrypts the Shopify and Klaviyo secrets with `APP_ENCRYPTION_KEY`.
+6. The encrypted secrets and non-secret connection metadata are saved to Supabase.
+7. Hourly cron and manual sync load active connections from Supabase.
+8. Sync decrypts secrets only on the server, calls Shopify/Klaviyo, and writes normalized reporting rows.
+9. Users can disconnect Shopify or Klaviyo from `/settings`; disconnect removes the encrypted secret from the database.
 
-This design keeps the UI fast, avoids leaking secrets, and reduces the chance of hitting platform rate limits.
+## Architecture Decision
+
+Previous design:
+
+- Region credentials lived in `REGION_CONFIG_JSON`.
+
+Current design:
+
+- Region display metadata lives in `regions`.
+- Platform connection metadata and encrypted secrets live in `platform_connections`.
+- Sync reads active database connections instead of parsing `REGION_CONFIG_JSON`.
+- `APP_ENCRYPTION_KEY` remains server-only and is never stored in Supabase.
+
+This keeps the tool easier to operate for non-developers while still avoiding plain secret storage.
 
 ## Official Docs Used
 
@@ -33,21 +51,22 @@ This design keeps the UI fast, avoids leaking secrets, and reduces the chance of
 - Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
 - Klaviyo campaign values reports: `https://developers.klaviyo.com/en/reference/query_campaign_values`
 - Klaviyo flow values reports: `https://developers.klaviyo.com/en/reference/query_flow_values`
-- Supabase SSR client setup: `https://supabase.com/docs/guides/auth/server-side/nextjs`
 - Supabase API security and RLS: `https://supabase.com/docs/guides/api/securing-your-api`
+- Next.js forms and Server Actions: `https://nextjs.org/docs/app/guides/forms`
 
 ## Where The Connection Lives In This App
 
 | Area | File | Responsibility |
 | --- | --- | --- |
-| Region config parser | `/src/lib/config/regions.ts` | Reads and validates `REGION_CONFIG_JSON`. |
-| Shared config type | `/src/lib/types.ts` | Defines `RegionIntegrationConfig`. |
+| Settings page | `/src/app/(dashboard)/settings/page.tsx` | Shows connection status, setup guides, connect form, and disconnect controls. |
+| Settings actions | `/src/app/(dashboard)/settings/actions.ts` | Handles authenticated connect/disconnect form submissions. |
+| Connection service | `/src/lib/settings/platform-connections.ts` | Validates input, encrypts/decrypts secrets, reads summaries, and writes connection rows. |
+| Encryption helper | `/src/lib/security/secret-encryption.ts` | Encrypts and decrypts platform secrets with AES-256-GCM. |
+| Region config loader | `/src/lib/config/regions.ts` | Loads active connected regions from Supabase for sync. |
 | Shopify client | `/src/lib/integrations/shopify.ts` | Calls Shopify Admin GraphQL and aggregates orders by day. |
 | Klaviyo client | `/src/lib/integrations/klaviyo.ts` | Calls Klaviyo campaign and flow report endpoints. |
-| Sync orchestrator | `/src/lib/sync/run-sync.ts` | Runs each region sync and writes rows to Supabase. |
-| Cron route | `/src/app/api/cron/hourly-sync/route.ts` | Runs hourly sync when the request has `CRON_SECRET`. |
-| Manual route | `/src/app/api/sync/route.ts` | Runs manual sync for authenticated dashboard users. |
-| Env example | `/.env.example` | Shows the required environment variable shape. |
+| Sync orchestrator | `/src/lib/sync/run-sync.ts` | Runs each active connected region and writes rows to Supabase. |
+| DB migration | `/supabase/migrations/S002-platform-connections.sql` | Adds `platform_connections` with RLS and service-role-only writes. |
 
 ## Required Environment Variables
 
@@ -63,424 +82,233 @@ Server-only values:
 ```bash
 SUPABASE_SERVICE_ROLE_KEY=
 CRON_SECRET=
+APP_ENCRYPTION_KEY=
 DEMO_MODE=false
 KLAVIYO_REVISION=2026-04-15
 SHOPIFY_API_VERSION=2026-07
-REGION_CONFIG_JSON='[...]'
 ```
 
-Security rules:
+`REGION_CONFIG_JSON` is no longer the live connection source.
 
-- Only `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` may use the `NEXT_PUBLIC_` prefix.
-- Shopify tokens, Klaviyo private keys, Supabase secret/service-role keys, and `CRON_SECRET` must never use `NEXT_PUBLIC_`.
-- Never paste real secrets into Markdown docs, screenshots, tickets, or browser-visible code.
+## `APP_ENCRYPTION_KEY`
 
-## `REGION_CONFIG_JSON` Schema
+`APP_ENCRYPTION_KEY` protects platform secrets before they are stored in Supabase.
 
-`REGION_CONFIG_JSON` is a JSON array. Each object represents one reporting region and contains the
-credentials needed to connect that region's Shopify shop and Klaviyo account.
+Requirements:
 
-```json
-[
-  {
-    "slug": "us",
-    "name": "United States",
-    "currencyCode": "USD",
-    "timezone": "America/New_York",
-    "shopifyShopDomain": "example.myshopify.com",
-    "shopifyAdminAccessToken": "shpat_xxx",
-    "klaviyoPrivateKey": "pk_xxx",
-    "klaviyoAccountLabel": "US Klaviyo",
-    "klaviyoConversionMetricId": ""
-  }
-]
+- Must be server-only.
+- Must be stable across deployments.
+- Must be 32 bytes when decoded.
+- Recommended format is base64.
+
+Generate one with:
+
+```bash
+openssl rand -base64 32
 ```
 
-| Field | Required | Meaning |
-| --- | --- | --- |
-| `slug` | Yes | Stable lowercase identifier used in filters and database rows, for example `us`, `uk`, or `eu`. |
-| `name` | Yes | Human-readable region label shown in the dashboard. |
-| `currencyCode` | Yes | ISO currency code used for display and stored rows. |
-| `timezone` | Yes | Region timezone for future reporting refinements. Current sync windows use UTC day boundaries. |
-| `shopifyShopDomain` | Yes | Shopify shop domain such as `brand-us.myshopify.com`. Do not include admin URLs or API paths. |
-| `shopifyAdminAccessToken` | Yes | Shopify Admin API access token for that shop. |
-| `klaviyoPrivateKey` | Yes | Klaviyo private API key for that Klaviyo account. |
-| `klaviyoAccountLabel` | No | Friendly label stored in the `regions` table. |
-| `klaviyoConversionMetricId` | No | Optional Klaviyo conversion metric ID if the account requires an explicit metric for revenue reporting. |
+Do not rotate this casually. If it changes before existing secrets are re-encrypted, stored platform
+connections cannot be decrypted.
 
-## Shopify Setup
+## Database Storage Model
 
-### What Shopify Credential Is Needed
+`regions` stores non-secret region metadata:
 
-For each Shopify shop, this app needs a Shopify Admin API access token. The token must be stored in
-`REGION_CONFIG_JSON` as `shopifyAdminAccessToken`.
+- `slug`
+- `name`
+- `currency_code`
+- `timezone`
+- `shopify_shop_domain`
+- `klaviyo_account_label`
+- `is_active`
 
-The Shopify request uses:
+`platform_connections` stores connection metadata and encrypted secrets:
 
-```http
-POST https://{shop}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/graphql.json
-Content-Type: application/json
-X-Shopify-Access-Token: {shopifyAdminAccessToken}
-```
+- `region_id`
+- `shopify_shop_domain`
+- `shopify_admin_token_ciphertext`
+- `shopify_connected_at`
+- `shopify_disconnected_at`
+- `klaviyo_account_label`
+- `klaviyo_private_key_ciphertext`
+- `klaviyo_conversion_metric_id`
+- `klaviyo_connected_at`
+- `klaviyo_disconnected_at`
+- `created_by`
+- `updated_by`
 
-The current code reads order data from the Shopify Admin GraphQL `orders` query.
+Only server-side code using the Supabase service role can read or write `platform_connections`.
+Authenticated browser clients must not be granted direct access to that table.
 
-### Recommended Shopify Scopes
+## Settings Page Workflow
 
-Minimum for the current dashboard:
+The Settings page should allow internal users to:
+
+- See every configured region.
+- See whether Shopify is connected.
+- See whether Klaviyo is connected.
+- Connect or update a region's Shopify/Klaviyo credentials.
+- Disconnect Shopify for a region.
+- Disconnect Klaviyo for a region.
+- Deactivate a region without deleting historical reporting rows.
+- Read step-by-step guidance for creating Shopify custom apps and Klaviyo private keys.
+
+The page should never show existing secret values. If a key needs to change, the user pastes a new key.
+
+## Shopify Setup Guide For The Settings Page
+
+Credential needed:
+
+- Shopify Admin API access token.
+
+Required current scope:
 
 - `read_orders`
 
-Recommended when reporting ranges may need orders older than Shopify's default recent-order window:
+Optional historical scope:
 
 - `read_all_orders`
 
-Important notes:
+Steps:
 
-- Shopify states that `read_all_orders` is used with order scopes such as `read_orders`.
-- Shopify may require additional approval for `read_all_orders`.
-- Do not request write scopes for this dashboard unless the product scope changes.
+1. Open the target Shopify store.
+2. Create a new custom app through the current Shopify app creation flow.
+3. Grant `read_orders`.
+4. Add `read_all_orders` only if reporting must include older orders beyond Shopify's default recent-order window.
+5. Install the app.
+6. Copy the Admin API access token immediately.
+7. Copy the shop domain, for example `brand-us.myshopify.com`.
+8. Paste the shop domain and token into `/settings`.
+9. Save the connection.
+10. Run a manual sync to confirm the token works.
 
-### Shopify Connection Steps
-
-1. Open the Shopify admin for the target store.
-2. Create or install the custom app used by this internal dashboard.
-3. Grant the app `read_orders`.
-4. Request and grant `read_all_orders` only if historical reporting beyond the default order window is required.
-5. Install the app and copy the Admin API access token.
-6. Copy the shop domain, for example `brand-us.myshopify.com`.
-7. Add both values to the correct object in `REGION_CONFIG_JSON`.
-8. Run a manual sync in development or staging.
-9. Confirm rows appear in `shopify_daily_metrics`.
-10. Confirm Shopify revenue, orders, refunds, cancellations, and AOV render for that region.
-
-### Shopify Smoke Test
-
-Use this only from a secure terminal. Do not paste real token output into docs or chat.
-
-```bash
-curl -sX POST "https://SHOP_DOMAIN/admin/api/2026-07/graphql.json" \
-  -H "Content-Type: application/json" \
-  -H "X-Shopify-Access-Token: SHOPIFY_ADMIN_ACCESS_TOKEN" \
-  -d '{"query":"query { orders(first: 1, sortKey: CREATED_AT, reverse: true) { edges { node { id createdAt currentTotalPriceSet { shopMoney { amount currencyCode } } } } } }"}'
-```
-
-Expected result:
-
-- HTTP `200`.
-- JSON with `data.orders.edges`.
-
-Failure hints:
-
-- `401` or `403`: token is missing, invalid, not installed, or does not have the needed scope.
-- GraphQL permission errors: app scopes are too narrow.
-- Empty data: the shop may have no orders in the requested range, or the app lacks older-order access.
-
-## Klaviyo Setup
-
-### What Klaviyo Credential Is Needed
-
-For each Klaviyo account, this app needs a Klaviyo private API key. The key must be stored in
-`REGION_CONFIG_JSON` as `klaviyoPrivateKey`.
-
-The Klaviyo request uses:
+The app sends Shopify requests with:
 
 ```http
-Authorization: Klaviyo-API-Key {klaviyoPrivateKey}
-Accept: application/vnd.api+json
-Content-Type: application/vnd.api+json
-revision: 2026-04-15
+X-Shopify-Access-Token: {decrypted token}
 ```
 
-The current code calls:
+## Klaviyo Setup Guide For The Settings Page
 
-- `POST https://a.klaviyo.com/api/campaign-values-reports`
-- `POST https://a.klaviyo.com/api/flow-values-reports`
+Credential needed:
 
-### Recommended Klaviyo Scopes
+- Klaviyo private API key.
 
-Minimum for the current dashboard:
+Required current scopes:
 
 - `campaigns:read`
 - `flows:read`
 
-Optional if future work adds broader metric aggregate reporting:
+Optional future scope:
 
 - `metrics:read`
 
-Important notes:
+Steps:
 
-- Use a read-only or custom-scoped key whenever possible.
-- Klaviyo private keys cannot be viewed again after creation, so copy the key into the deployment secret store immediately.
-- If a key has the wrong scopes, create a new key. Do not reuse broad full-access keys for convenience.
+1. Open the target Klaviyo account.
+2. Go to account API key settings.
+3. Create a private API key.
+4. Use read-only or custom scopes.
+5. Include `campaigns:read` and `flows:read`.
+6. Copy the private key immediately.
+7. Paste the private key into `/settings`.
+8. Add a conversion metric ID only if the account needs explicit revenue metric selection.
+9. Save the connection.
+10. Run a manual sync to confirm reports return data.
 
-### Klaviyo Connection Steps
+The app sends Klaviyo requests with:
 
-1. Open the Klaviyo account for the target region.
-2. Go to account settings and create a private API key.
-3. Choose read-only or custom scopes.
-4. Include `campaigns:read` and `flows:read`.
-5. Copy the private key immediately.
-6. Add it to the correct object in `REGION_CONFIG_JSON`.
-7. If revenue attribution requires a specific conversion metric, add `klaviyoConversionMetricId`.
-8. Run a manual sync in development or staging.
-9. Confirm rows appear in `klaviyo_campaign_reports`, `klaviyo_flow_reports`, and `klaviyo_daily_metrics`.
-10. Confirm campaign, flow, open rate, click rate, conversion rate, and attributed revenue render.
-
-### Klaviyo Smoke Test
-
-Use this only from a secure terminal. The payload below is intentionally minimal and should be adjusted to a
-small date range that has known campaign activity.
-
-```bash
-curl -sX POST "https://a.klaviyo.com/api/campaign-values-reports" \
-  -H "Authorization: Klaviyo-API-Key KLAVIYO_PRIVATE_KEY" \
-  -H "Accept: application/vnd.api+json" \
-  -H "Content-Type: application/vnd.api+json" \
-  -H "revision: 2026-04-15" \
-  -d '{
-    "data": {
-      "type": "campaign-values-report",
-      "attributes": {
-        "timeframe": {
-          "start": "2026-07-01T00:00:00Z",
-          "end": "2026-07-02T23:59:59Z"
-        },
-        "statistics": ["recipients", "opens", "clicks", "conversions", "conversion_value"]
-      }
-    }
-  }'
+```http
+Authorization: Klaviyo-API-Key {decrypted private key}
+revision: 2026-04-15
 ```
 
-Expected result:
+## Disconnect Behavior
 
-- HTTP `200`.
-- JSON containing report data or an empty result set for a quiet range.
+Disconnecting a platform should:
 
-Failure hints:
+- Set the encrypted secret column to `null`.
+- Set the matching connected timestamp to `null`.
+- Set the matching disconnected timestamp to `now()`.
+- Keep historical reporting rows intact.
+- Keep non-secret region metadata unless the user deactivates the region.
 
-- `400`: missing, malformed, or wrong-account key.
-- `403`: private key does not have the required scope.
-- `429`: Klaviyo rate limit hit. Wait before retrying.
-- Empty revenue: confirm the account's attribution setup and whether `klaviyoConversionMetricId` is needed.
+Deactivating a region should:
 
-## Supabase Setup
-
-Supabase is the local reporting cache. It stores the normalized data that pages read.
-
-Before live sync:
-
-1. Create or choose a Supabase project.
-2. Apply `/supabase/migrations/S001-initial-analytics-dashboard.sql`.
-3. Set `NEXT_PUBLIC_SUPABASE_URL`.
-4. Set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
-5. Set `SUPABASE_SERVICE_ROLE_KEY` or the current Supabase server-side secret key equivalent.
-6. Confirm RLS is enabled on reporting tables.
-7. Confirm authenticated users can `select` reporting rows.
-8. Confirm browser clients cannot insert, update, or delete reporting rows.
-9. Confirm service-role writes are used only by server-only sync code.
-
-The sync service writes to:
-
-- `regions`
-- `sync_runs`
-- `shopify_daily_metrics`
-- `klaviyo_daily_metrics`
-- `klaviyo_campaign_reports`
-- `klaviyo_flow_reports`
-
-Dashboard pages read those same reporting tables through authenticated Supabase server clients.
-
-## Local Development Setup
-
-1. Create `.env.local` from `.env.example`.
-2. Use `DEMO_MODE=true` if you only want to inspect the UI.
-3. Use `DEMO_MODE=false` when testing real platform connections.
-4. Fill in Supabase values.
-5. Fill in `REGION_CONFIG_JSON`.
-6. Start the dev server.
-7. Sign in through Supabase Auth unless demo mode is enabled.
-8. Trigger manual sync from the dashboard.
-9. Check `sync_runs` for status and sanitized error details.
-
-Do not commit `.env.local`.
-
-## Production Setup
-
-1. Store all environment variables in the deployment platform's secret manager.
-2. Keep `DEMO_MODE=false` or unset.
-3. Set `CRON_SECRET` to a long random value.
-4. Deploy `vercel.json` with the hourly cron route.
-5. Confirm `/api/cron/hourly-sync` rejects requests without the bearer token.
-6. Confirm Vercel Cron sends the expected bearer token.
-7. Run a manual sync for one region.
-8. Confirm each expected Supabase table receives rows.
-9. Let one hourly cron run complete.
-10. Review logs for sanitized sync messages only.
+- Set `regions.is_active=false`.
+- Prevent future sync from using that region.
+- Keep historical rows for past reporting.
 
 ## Sync Behavior
 
-- Manual sync accepts `rangeDays` but caps it to 90 days.
-- Cron sync uses the server-side default range.
-- Only one running sync is allowed at a time.
-- One failed region can produce a `partial` run instead of hiding other successful regions.
+Sync should only run a region when:
 
-Shopify sync:
+- `regions.is_active=true`.
+- Shopify has an encrypted token.
+- Klaviyo has an encrypted private key.
+- Neither Shopify nor Klaviyo is marked disconnected.
 
-- Pulls orders by `created_at` range.
-- Paginates with GraphQL cursors.
-- Aggregates revenue, orders, unique customers, refunds, and cancellations by day.
-- Writes daily rows to `shopify_daily_metrics`.
-
-Klaviyo sync:
-
-- Pulls campaign value reports.
-- Pulls flow value reports.
-- Normalizes report rows into campaign, flow, and daily aggregate tables.
-- Writes campaign rows, flow rows, and daily attributed revenue rows.
-
-## Adding A New Region
-
-1. Create or collect the Shopify Admin API token for the new region's shop.
-2. Create or collect the Klaviyo private key for the new region's account.
-3. Add a new object to `REGION_CONFIG_JSON`.
-4. Use a stable `slug`; changing it later creates a new region identity in reporting.
-5. Deploy the updated env var.
-6. Run a manual sync.
-7. Confirm the new region appears in the dashboard region filter.
-8. Confirm Supabase has one `regions` row for the new slug.
-9. Confirm Shopify and Klaviyo rows exist for the new `region_id`.
+If no complete active connections exist, sync should fail gracefully with a clear sanitized message.
 
 ## Troubleshooting
 
-### Dashboard Shows Demo Data
+### Settings Save Fails
 
-Likely cause:
+Check:
 
-- `DEMO_MODE=true`.
+- User is authenticated.
+- `APP_ENCRYPTION_KEY` is set.
+- Migration `S002-platform-connections.sql` has been applied.
+- Required form fields are present.
+- Region slug uses lowercase letters, numbers, or dashes.
 
-Fix:
+### Sync Says No Connected Regions
 
-- Set `DEMO_MODE=false` or remove the variable in production.
+Check:
 
-### Manual Sync Returns Unauthorized
-
-Likely cause:
-
-- User is not signed in.
-- Supabase auth cookies are missing or invalid.
-
-Fix:
-
-- Sign in again.
-- Confirm Supabase URL and publishable key are correct.
-- Confirm the Supabase proxy/session refresh code is deployed.
-
-### Cron Sync Returns Unauthorized
-
-Likely cause:
-
-- Missing or incorrect `Authorization: Bearer ${CRON_SECRET}`.
-
-Fix:
-
-- Confirm `CRON_SECRET` is set.
-- Confirm Vercel Cron or the caller sends the bearer token.
+- Region is active.
+- Shopify is connected.
+- Klaviyo is connected.
+- The encrypted secret columns are not null.
+- Disconnect timestamps are null for both platforms.
 
 ### Shopify Sync Fails
 
-Common causes:
+Check:
 
-- Wrong `shopifyShopDomain`.
-- Token copied incorrectly.
-- Custom app not installed on the shop.
-- Missing `read_orders`.
-- Historical range requires `read_all_orders`.
-- Shopify throttling on a large store.
-
-Debug steps:
-
-1. Run the Shopify smoke test with a one-order query.
-2. Confirm the token belongs to the same shop domain.
-3. Confirm app scopes in Shopify admin.
-4. Retry with a smaller date range.
-5. Check `sync_runs.error_details`; it should be sanitized.
+- Shop domain is correct.
+- Token belongs to that shop.
+- Custom app is installed.
+- App has `read_orders`.
+- Historical sync range does not require missing `read_all_orders`.
 
 ### Klaviyo Sync Fails
 
-Common causes:
+Check:
 
-- Wrong private key.
-- Key belongs to a different account.
-- Missing `campaigns:read` or `flows:read`.
-- Unsupported or retired `KLAVIYO_REVISION`.
-- Rate limits from repeated manual sync attempts.
-- Missing conversion metric configuration for revenue.
-
-Debug steps:
-
-1. Run the Klaviyo smoke test for a small date range.
-2. Confirm key scopes in Klaviyo.
-3. Confirm `KLAVIYO_REVISION` is current.
-4. Wait before retrying after `429`.
-5. Add `klaviyoConversionMetricId` if revenue returns blank but engagement stats work.
-
-### Supabase Writes Fail
-
-Common causes:
-
-- Migration was not applied.
-- `SUPABASE_SERVICE_ROLE_KEY` is missing or wrong.
-- Table names differ from the migration.
-- RLS/grants were changed after migration.
-
-Debug steps:
-
-1. Confirm migration `S001-initial-analytics-dashboard.sql` has run.
-2. Confirm the server-only Supabase key is available in the deployment.
-3. Check `sync_runs` creation first; if it fails, the sync cannot proceed.
-4. Confirm reporting tables exist with the expected unique constraints.
-
-## Token Rotation
-
-Shopify:
-
-- If an Admin-created custom app token must change, Shopify may require uninstalling/reinstalling or recreating the app.
-- Update `REGION_CONFIG_JSON` immediately after rotating the token.
-- Run a manual sync to confirm the new token works.
-
-Klaviyo:
-
-- Create a new private key with the same minimum scopes.
-- Update `REGION_CONFIG_JSON`.
-- Delete the old key after the new key is verified.
-- Run a manual sync to confirm the new key works.
-
-Supabase:
-
-- Rotate server-side secret/service-role keys only during a planned deployment window.
-- Update the deployment secret store first.
-- Redeploy.
-- Run a manual sync.
-- Confirm dashboard reads still work for authenticated users.
+- Private key belongs to the correct account.
+- Key has `campaigns:read` and `flows:read`.
+- `KLAVIYO_REVISION` is supported.
+- The account has campaign or flow data in the selected date range.
+- `klaviyoConversionMetricId` is configured if revenue returns empty but engagement metrics work.
 
 ## Security Rules
 
-- Never store Shopify or Klaviyo credentials in Supabase tables.
-- Never return platform credentials from API routes.
-- Never log raw Shopify orders or raw Klaviyo payloads.
-- Never log customer emails, names, addresses, phone numbers, API keys, access tokens, or auth headers.
-- Keep sync logs to region slug, sync run ID, row counts, status, and sanitized error text.
+- Never store plain Shopify or Klaviyo secrets in Supabase.
+- Never return encrypted or decrypted secrets from server actions, API routes, or page props.
+- Never expose `APP_ENCRYPTION_KEY` to the browser.
+- Never log raw form data from `/settings`.
+- Never log platform tokens, auth headers, customer data, raw Shopify orders, or raw Klaviyo payloads.
+- Keep direct table access to `platform_connections` service-role-only.
 - Use read-only/custom-scoped platform credentials.
-- Treat `REGION_CONFIG_JSON` as a production secret.
 - Review `/docs/security-concerns.md` whenever connection behavior changes.
 
 ## Developer Change Checklist
 
-- Update this file if scopes, env vars, endpoints, or connection flow change.
-- Update `/docs/dev-to-production.md` if production setup changes.
-- Update `/docs/rate-limit-guide.md` if API call volume or retry behavior changes.
-- Update `/docs/contract-documentation/api-contract-documentation.md` if sync routes change.
-- Update `/docs/db-plan.md` if database tables or columns change.
-- Keep all new integration code server-only.
+- Update this file if settings flow, scopes, env vars, encryption, or connection storage changes.
+- Update `/docs/db-plan.md` when connection schema changes.
+- Update `/docs/dev-to-production.md` when production setup changes.
+- Update `/docs/route-details.md` when Settings routes change.
+- Update `/docs/console-logs-update.md` if new sanitized logs are added.
+- Keep all credential handling server-only.
 - Do not run production build unless explicitly approved.

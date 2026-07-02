@@ -13,9 +13,10 @@ must avoid PII and secrets, and they should be reviewed before production to dec
 | `src/lib/sync/run-sync.ts` | Logs sync start, per-region progress, and sync completion status. | No | Keep only if production observability is needed; otherwise replace with structured logger. |
 | `src/lib/integrations/shopify.ts` | Logs sanitized Shopify sync progress and retry context. | No | Keep warnings/errors only. |
 | `src/lib/integrations/klaviyo.ts` | Logs sanitized Klaviyo sync progress and retry context. | No | Keep warnings/errors only. |
+| `src/lib/settings/platform-connections.ts` | Logs sanitized connect, disconnect, and deactivate events by region slug or ID and provider. | No | Keep if operational audit visibility is needed; otherwise move to structured audit table. |
 
 ## Rules
 
 - Never log API keys, access tokens, auth headers, customer emails, customer names, phone numbers, raw Shopify orders, or raw Klaviyo payloads.
-- Keep logs focused on sync run ID, region slug, counts, status, and sanitized error messages.
+- Keep logs focused on sync run ID, region slug, provider, counts, status, and sanitized error messages.
 - Review this file before production launch.

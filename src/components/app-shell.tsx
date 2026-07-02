@@ -12,6 +12,7 @@ import {
   LogOut,
   Mail,
   Map,
+  Settings,
   ShoppingBag,
 } from "lucide-react";
 import Link from "next/link";
@@ -29,6 +30,7 @@ const navItems = [
   { href: "/klaviyo", label: "Klaviyo", icon: Mail },
   { href: "/campaigns", label: "Campaigns", icon: BarChart3 },
   { href: "/flows", label: "Flows", icon: ChartNoAxesCombined },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AppShell({

@@ -36,6 +36,7 @@ This project is a basic internal reporting dashboard that combines Shopify sales
 | `/docs/pages/klaviyo.md` | Klaviyo page doc | Purpose, contents, features, risks, and known gaps for email reporting. |
 | `/docs/pages/campaigns.md` | Campaigns page doc | Purpose, contents, features, risks, and known gaps for campaign reporting. |
 | `/docs/pages/flows.md` | Flows page doc | Purpose, contents, features, risks, and known gaps for flow reporting. |
+| `/docs/pages/settings.md` | Settings page doc | Purpose, contents, features, risks, and known gaps for platform connection management. |
 
 ## Current MVP Shape
 

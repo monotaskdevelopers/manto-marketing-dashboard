@@ -36,6 +36,10 @@ export function getCronSecret() {
   return readRequiredEnv("CRON_SECRET");
 }
 
+export function getAppEncryptionKey() {
+  return readRequiredEnv("APP_ENCRYPTION_KEY");
+}
+
 export function getKlaviyoRevision() {
   return process.env.KLAVIYO_REVISION || "2026-04-15";
 }

@@ -17,6 +17,7 @@ or route handlers are added, removed, renamed, or materially changed.
 | `/klaviyo` | Klaviyo reporting | Shows attributed revenue, engagement, campaign and flow rollups. | High |
 | `/campaigns` | Campaign reporting | Lists campaign-level performance across regions and dates. | High |
 | `/flows` | Flow reporting | Lists automated flow performance across regions and dates. | High |
+| `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
 
 ## API Routes
 

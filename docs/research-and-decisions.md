@@ -113,7 +113,7 @@ Decision:
 ## Architecture Decisions
 
 1. Local reporting cache: Supabase stores normalized reporting rows so the dashboard is fast and external APIs are protected from repeated UI reads.
-2. Region config in environment: platform credentials and region connection details live in `REGION_CONFIG_JSON` and are never stored in public client code.
+2. Database-backed settings: platform credentials are entered through `/settings`, encrypted with a server-only `APP_ENCRYPTION_KEY`, and stored as ciphertext in `platform_connections`.
 3. Simple auth: all signed-in users can view the app; no roles in MVP.
 4. Hourly and manual sync: cron keeps data fresh, manual sync handles urgent updates.
 5. Date and region filters are URL query parameters so pages can be shared internally.
