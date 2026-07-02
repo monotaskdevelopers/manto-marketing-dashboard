@@ -75,6 +75,14 @@ const utilityNavigation: NavigationLeaf[] = [
   { type: "link", href: "/settings", label: "Settings", icon: Settings },
 ];
 
+// Sidebar rows intentionally use a flat, monochrome treatment so the nav matches the Klaviyo-style rail
+// without changing the route tree or the labels users already rely on.
+const navRowClassName =
+  "group flex min-h-11 min-w-0 items-center gap-3 self-stretch rounded-[9px] text-[15px] font-medium leading-none tracking-normal transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#656b73]";
+const inactiveRowClassName = "text-[#51565d] hover:bg-[#eceff2] hover:text-[#24272c]";
+const activeLeafClassName = "bg-[#e4e7eb] text-[#24272c]";
+const mutedIconClassName = "h-5 w-5 shrink-0 text-[#646970]";
+
 function isActivePath(pathname: string, item: NavigationLeaf) {
   if (item.exact || item.href === "/") {
     return pathname === item.href;
@@ -118,18 +126,13 @@ function NavigationLink({
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={clsx(
-        "group inline-flex min-w-0 items-center gap-3 rounded-lg text-sm font-semibold transition duration-150",
-        variant === "sidebar" ? "px-3 py-2.5" : "px-3 py-2",
-        depth > 0 && "ml-4",
-        active
-          ? "bg-slate-950 text-white shadow-sm shadow-slate-950/10"
-          : "text-slate-600 hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 hover:shadow-sm hover:shadow-slate-200/70",
+        navRowClassName,
+        variant === "sidebar" ? "px-3 py-2.5" : "px-3 py-2.5",
+        depth > 0 && "ml-5",
+        active ? activeLeafClassName : inactiveRowClassName,
       )}
     >
-      <item.icon
-        aria-hidden="true"
-        className={clsx("h-4 w-4 shrink-0", active ? "text-teal-200" : "text-slate-400 group-hover:text-teal-700")}
-      />
+      <item.icon aria-hidden="true" className={mutedIconClassName} />
       <span className="truncate">{item.label}</span>
     </Link>
   );
@@ -154,18 +157,22 @@ function NavigationGroup({
   const open = depth === 0 || active || hasDescendantPath;
 
   return (
-    <details className={clsx("group/nav min-w-0", depth > 0 && "ml-4")} open={open}>
+    <details className={clsx("group/nav min-w-0", depth > 0 && "ml-5")} open={open}>
       <summary
         className={clsx(
-          "flex cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-white hover:text-slate-950 hover:shadow-sm hover:shadow-slate-200/70 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700 [&::-webkit-details-marker]:hidden",
-          active && "bg-slate-100 text-slate-950",
+          navRowClassName,
+          "cursor-pointer list-none px-3 py-2.5 [&::-webkit-details-marker]:hidden",
+          active ? "text-[#24272c]" : inactiveRowClassName,
         )}
       >
-        <item.icon aria-hidden="true" className={clsx("h-4 w-4 shrink-0", active ? "text-teal-700" : "text-slate-400")} />
+        <item.icon aria-hidden="true" className={mutedIconClassName} />
         <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        <ChevronDown aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400 transition-transform duration-150 group-open/nav:rotate-180" />
+        <ChevronDown
+          aria-hidden="true"
+          className="h-4 w-4 shrink-0 text-[#62676e] transition-transform duration-150 group-open/nav:rotate-180"
+        />
       </summary>
-      <div className="mt-1 flex min-w-0 flex-col gap-1 border-l border-slate-200/80 pl-2">
+      <div className="mt-1 flex min-w-0 flex-col gap-1">
         {item.items.map((child) =>
           child.type === "link" ? (
             <NavigationLink
@@ -200,7 +207,9 @@ export function AppNavigation({
   return (
     <nav
       className={clsx(
-        variant === "sidebar" ? "flex flex-col gap-2 px-3 py-4" : "flex max-h-[55vh] flex-col gap-2 overflow-y-auto px-4 py-3",
+        variant === "sidebar"
+          ? "flex flex-col gap-1 px-3 py-4"
+          : "flex max-h-[55vh] flex-col gap-1 overflow-y-auto px-4 py-3",
       )}
       aria-label="Dashboard navigation"
     >
@@ -208,7 +217,7 @@ export function AppNavigation({
         <NavigationLink key={item.href} item={item} pathname={pathname} variant={variant} depth={0} />
       ))}
       <NavigationGroup item={analyticsNavigation} pathname={pathname} variant={variant} />
-      <div className="mt-2 border-t border-slate-200/80 pt-2">
+      <div className="mt-3 flex flex-col gap-1 pt-2">
         {utilityNavigation.map((item) => (
           <NavigationLink key={item.href} item={item} pathname={pathname} variant={variant} depth={0} />
         ))}

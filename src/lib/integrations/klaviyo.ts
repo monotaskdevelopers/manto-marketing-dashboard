@@ -116,7 +116,7 @@ export type KlaviyoTagSyncRow = {
 
 export type KlaviyoTagRelationshipSyncRow = {
   tag_id: string;
-  target_type: "list" | "segment" | "campaign" | "flow";
+  target_type: "list" | "segment" | "campaign" | "flow" | "campaign_message" | "flow_action" | "flow_message";
   target_id: string;
   raw_payload: KlaviyoJson;
 };
@@ -147,6 +147,62 @@ export type KlaviyoFlowMetadataSyncRow = {
   raw_payload: KlaviyoJson;
 };
 
+export type KlaviyoCampaignMessageSyncRow = {
+  campaign_id: string;
+  message_id: string;
+  name: string;
+  channel: string | null;
+  status: string | null;
+  subject: string | null;
+  preview_text: string | null;
+  from_email: string | null;
+  from_label: string | null;
+  reply_to_email: string | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+  raw_payload: KlaviyoJson;
+};
+
+export type KlaviyoCampaignAudienceSyncRow = {
+  campaign_id: string;
+  campaign_message_id: string;
+  relationship_name: string;
+  audience_type: string;
+  audience_id: string;
+  raw_payload: KlaviyoJson;
+};
+
+export type KlaviyoFlowActionSyncRow = {
+  flow_id: string;
+  action_id: string;
+  action_type: string | null;
+  status: string | null;
+  name: string | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+  raw_payload: KlaviyoJson;
+};
+
+export type KlaviyoFlowMessageSyncRow = {
+  flow_id: string;
+  action_id: string;
+  message_id: string;
+  name: string;
+  channel: string | null;
+  status: string | null;
+  subject: string | null;
+  preview_text: string | null;
+  from_email: string | null;
+  from_label: string | null;
+  reply_to_email: string | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+  raw_payload: KlaviyoJson;
+};
+
 export type KlaviyoComprehensiveSyncData = {
   profiles: KlaviyoProfileSyncRow[];
   audiences: KlaviyoAudienceSyncRow[];
@@ -156,7 +212,11 @@ export type KlaviyoComprehensiveSyncData = {
   tags: KlaviyoTagSyncRow[];
   tagRelationships: KlaviyoTagRelationshipSyncRow[];
   campaigns: KlaviyoCampaignMetadataSyncRow[];
+  campaignMessages: KlaviyoCampaignMessageSyncRow[];
+  campaignAudiences: KlaviyoCampaignAudienceSyncRow[];
   flows: KlaviyoFlowMetadataSyncRow[];
+  flowActions: KlaviyoFlowActionSyncRow[];
+  flowMessages: KlaviyoFlowMessageSyncRow[];
 };
 
 type KlaviyoJson = Record<string, unknown>;
@@ -183,32 +243,19 @@ const klaviyoReportingStatistics = [
   "spam_complaints",
 ];
 
-const klaviyoProfileFields = [
-  "id",
-  "email",
-  "phone_number",
-  "external_id",
-  "first_name",
-  "last_name",
-  "organization",
-  "title",
-  "locale",
-  "location",
-  "properties",
-  "subscriptions",
-  "predictive_analytics",
-  "created",
-  "updated",
-  "last_event_date",
-];
-
-const klaviyoListFields = ["id", "name", "opt_in_process", "created", "updated"];
-const klaviyoSegmentFields = ["id", "name", "created", "updated", "is_active", "is_starred"];
-const klaviyoMetricFields = ["id", "name", "integration", "created", "updated"];
-const klaviyoEventFields = ["id", "uuid", "datetime", "timestamp", "event_properties"];
-const klaviyoFlowFields = ["id", "name", "status", "trigger_type", "archived", "created", "updated"];
-
 const klaviyoCampaignChannels: KlaviyoCampaignChannel[] = ["email", "sms", "mobile_push"];
+const klaviyoRelationshipNamesByAudienceType = new Map([
+  ["audience", "audience"],
+  ["audiences", "audience"],
+  ["list", "list"],
+  ["lists", "list"],
+  ["included-lists", "list"],
+  ["excluded-lists", "list"],
+  ["segment", "segment"],
+  ["segments", "segment"],
+  ["included-segments", "segment"],
+  ["excluded-segments", "segment"],
+]);
 
 function asRecord(value: unknown): KlaviyoJson {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -286,6 +333,28 @@ function readRelationshipIds(resource: KlaviyoJson, relationshipName: string) {
     .filter(Boolean);
 }
 
+function readRelationshipData(resource: KlaviyoJson, relationshipName: string) {
+  const relationships = asRecord(resource.relationships);
+  const relationship = asRecord(relationships[relationshipName]);
+  const relationshipData = relationship.data;
+
+  return (Array.isArray(relationshipData) ? relationshipData : relationshipData ? [relationshipData] : [])
+    .map(asRecord)
+    .filter((item) => readString(item, ["id"], ""));
+}
+
+function readFromRecords(records: KlaviyoJson[], keys: string[]) {
+  for (const record of records) {
+    const value = readOptionalString(record, keys);
+
+    if (value) {
+      return value;
+    }
+  }
+
+  return null;
+}
+
 function buildSearchText(parts: Array<string | null | undefined>) {
   return parts
     .map((part) => part?.trim())
@@ -337,6 +406,12 @@ function parseJsonText(text: string) {
   } catch {
     return {};
   }
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function sanitizeLogText(value: string) {
@@ -463,37 +538,58 @@ async function klaviyoGetRequest(params: {
   const label = params.label || "Klaviyo request";
   const logPrefix = params.context === "sync" ? "sync:klaviyo" : "settings:klaviyo";
   const path = buildKlaviyoPath(params.path);
-  const response = await fetch(`https://a.klaviyo.com/api/${path}`, {
-    method: "GET",
-    headers: {
-      Authorization: `Klaviyo-API-Key ${params.privateKey}`,
-      Accept: "application/vnd.api+json",
-      revision: getKlaviyoRevision(),
-    },
-  });
+  const maxAttempts = 3;
 
-  if (response.status === 401 || response.status === 403) {
-    console.warn(`[${logPrefix}] ${label} unauthorized for region ${params.regionSlug}.`);
-    throw new Error(
-      params.authorizationErrorMessage ||
-        `Grant the required Klaviyo read scope so ${label.toLowerCase()} can run.`,
-    );
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const response = await fetch(`https://a.klaviyo.com/api/${path}`, {
+      method: "GET",
+      headers: {
+        Authorization: `Klaviyo-API-Key ${params.privateKey}`,
+        Accept: "application/vnd.api+json",
+        revision: getKlaviyoRevision(),
+      },
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      console.warn(`[${logPrefix}] ${label} unauthorized for region ${params.regionSlug}.`);
+      throw new Error(
+        params.authorizationErrorMessage ||
+          `Grant the required Klaviyo read scope so ${label.toLowerCase()} can run.`,
+      );
+    }
+
+    if (response.status === 429) {
+      const retryAfterSeconds = Number(response.headers.get("retry-after"));
+      const retryDelayMs = Number.isFinite(retryAfterSeconds)
+        ? Math.min(Math.max(retryAfterSeconds * 1000, 500), 10_000)
+        : Math.min(1000 * attempt, 5000);
+
+      if (attempt < maxAttempts) {
+        console.warn(
+          `[${logPrefix}] ${label} rate limited for region ${params.regionSlug}; retrying attempt ${
+            attempt + 1
+          }/${maxAttempts} after ${retryDelayMs}ms.`,
+        );
+        await wait(retryDelayMs);
+        continue;
+      }
+
+      console.warn(`[${logPrefix}] ${label} rate limited for region ${params.regionSlug}; retries exhausted.`);
+      throw new Error(params.rateLimitErrorMessage || `${label} was rate limited. Wait briefly and try again.`);
+    }
+
+    if (!response.ok) {
+      const responseText = await response.text();
+      const summary = summarizeKlaviyoErrors(parseJsonText(responseText), responseText);
+
+      console.warn(`[${logPrefix}] ${label} failed for region ${params.regionSlug}: ${response.status}. ${summary}`);
+      throw new Error(`Unable to fetch ${label.toLowerCase()} for region ${params.regionSlug}. ${summary}`);
+    }
+
+    return (await response.json()) as KlaviyoJson;
   }
 
-  if (response.status === 429) {
-    console.warn(`[${logPrefix}] ${label} rate limited for region ${params.regionSlug}.`);
-    throw new Error(params.rateLimitErrorMessage || `${label} was rate limited. Wait briefly and try again.`);
-  }
-
-  if (!response.ok) {
-    const responseText = await response.text();
-    const summary = summarizeKlaviyoErrors(parseJsonText(responseText), responseText);
-
-    console.warn(`[${logPrefix}] ${label} failed for region ${params.regionSlug}: ${response.status}. ${summary}`);
-    throw new Error(`Unable to fetch ${label.toLowerCase()} for region ${params.regionSlug}. ${summary}`);
-  }
-
-  return (await response.json()) as KlaviyoJson;
+  throw new Error(`Unable to fetch ${label.toLowerCase()} for region ${params.regionSlug}.`);
 }
 
 async function fetchKlaviyoCollection(params: {
@@ -530,6 +626,12 @@ async function fetchKlaviyoCollection(params: {
     const links = asRecord(payload.links);
     nextPath = normalizeKlaviyoNextPath(readString(links, ["next"], ""));
     pageCount += 1;
+
+    console.info(
+      `[sync:klaviyo] Fetched ${params.label} page ${pageCount} for region ${params.region.slug}: ` +
+        `${asArray(payload.data).length} item(s), ${asArray(payload.included).length} included resource(s), ` +
+        `next_cursor=${nextPath ? "present" : "absent"}.`,
+    );
   }
 
   console.info(
@@ -720,6 +822,12 @@ function includedResourceMap(included: KlaviyoJson[]) {
   });
 
   return resources;
+}
+
+function includedResourcesByType(included: KlaviyoJson[], resourceTypes: string[]) {
+  const allowedTypes = new Set(resourceTypes);
+
+  return included.filter((resource) => allowedTypes.has(readString(resource, ["type"], "")));
 }
 
 function profileFromResponseItem(value: unknown): KlaviyoProfileSyncRow | null {
@@ -973,6 +1081,156 @@ function flowFromResponseItem(value: unknown): KlaviyoFlowMetadataSyncRow | null
   };
 }
 
+function campaignMessageFromResponseItem(
+  value: unknown,
+  fallbackCampaignId: string | null,
+): KlaviyoCampaignMessageSyncRow | null {
+  const record = asRecord(value);
+  const attributes = asRecord(record.attributes);
+  const content = asRecord(attributes.content);
+  const email = asRecord(attributes.email);
+  const messageId = readString(record, ["id"], "");
+  const campaignId = readRelationshipIds(record, "campaign")[0] || fallbackCampaignId;
+
+  if (!messageId || !campaignId) {
+    return null;
+  }
+
+  const name = readString(attributes, ["name", "label", "message_name"], `Campaign message ${messageId}`);
+  const channel = readFromRecords([attributes, content, email], ["channel", "send_channel", "message_type"]);
+  const status = readFromRecords([attributes, content, email], ["status"]);
+  const subject = readFromRecords([attributes, content, email], ["subject", "subject_line", "email_subject"]);
+  const previewText = readFromRecords([attributes, content, email], ["preview_text", "previewText"]);
+  const fromEmail = readFromRecords([attributes, content, email], ["from_email", "fromEmail"]);
+  const fromLabel = readFromRecords([attributes, content, email], ["from_label", "fromLabel", "from_name"]);
+  const replyToEmail = readFromRecords([attributes, content, email], ["reply_to_email", "replyToEmail"]);
+
+  return {
+    campaign_id: campaignId,
+    message_id: messageId,
+    name,
+    channel,
+    status,
+    subject,
+    preview_text: previewText,
+    from_email: fromEmail,
+    from_label: fromLabel,
+    reply_to_email: replyToEmail,
+    klaviyo_created_at: readOptionalString(attributes, ["created_at", "created"]),
+    klaviyo_updated_at: readOptionalString(attributes, ["updated_at", "updated"]),
+    search_text: buildSearchText([campaignId, messageId, name, channel, status, subject, fromLabel]),
+    raw_payload: record,
+  };
+}
+
+function campaignAudienceRelationshipsFromResource(params: {
+  resource: KlaviyoJson;
+  campaignId: string;
+  campaignMessageId?: string;
+}) {
+  const rows: KlaviyoCampaignAudienceSyncRow[] = [];
+
+  // Klaviyo can expose list/segment/audience links under different relationship names depending on
+  // campaign channel and API revision, so keep the original relationship name for later reporting.
+  klaviyoRelationshipNamesByAudienceType.forEach((audienceType, relationshipName) => {
+    readRelationshipData(params.resource, relationshipName).forEach((relationship) => {
+      const audienceId = readString(relationship, ["id"], "");
+
+      if (!audienceId) {
+        return;
+      }
+
+      rows.push({
+        campaign_id: params.campaignId,
+        campaign_message_id: params.campaignMessageId || "",
+        relationship_name: relationshipName,
+        audience_type: readString(relationship, ["type"], audienceType).replace(/s$/, "") || audienceType,
+        audience_id: audienceId,
+        raw_payload: {
+          campaign_id: params.campaignId,
+          campaign_message_id: params.campaignMessageId || "",
+          relationship_name: relationshipName,
+          relationship,
+        },
+      });
+    });
+  });
+
+  return rows;
+}
+
+function flowActionFromResponseItem(value: unknown, fallbackFlowId: string | null): KlaviyoFlowActionSyncRow | null {
+  const record = asRecord(value);
+  const attributes = asRecord(record.attributes);
+  const actionId = readString(record, ["id"], "");
+  const flowId = readRelationshipIds(record, "flow")[0] || fallbackFlowId;
+
+  if (!actionId || !flowId) {
+    return null;
+  }
+
+  const actionType = readOptionalString(attributes, ["action_type", "actionType"]);
+  const status = readOptionalString(attributes, ["status"]);
+  const name = readOptionalString(attributes, ["name", "label"]);
+
+  return {
+    flow_id: flowId,
+    action_id: actionId,
+    action_type: actionType,
+    status,
+    name,
+    klaviyo_created_at: readOptionalString(attributes, ["created"]),
+    klaviyo_updated_at: readOptionalString(attributes, ["updated"]),
+    search_text: buildSearchText([flowId, actionId, actionType, status, name]),
+    raw_payload: record,
+  };
+}
+
+function flowMessageFromResponseItem(params: {
+  value: unknown;
+  fallbackFlowId: string | null;
+  fallbackActionId: string | null;
+}): KlaviyoFlowMessageSyncRow | null {
+  const record = asRecord(params.value);
+  const attributes = asRecord(record.attributes);
+  const content = asRecord(attributes.content);
+  const email = asRecord(attributes.email);
+  const messageId = readString(record, ["id"], "");
+  const actionId = readRelationshipIds(record, "flow-action")[0] || params.fallbackActionId;
+
+  if (!messageId || !actionId) {
+    return null;
+  }
+
+  const flowId = readRelationshipIds(record, "flow")[0] || params.fallbackFlowId || "";
+  const name = readString(attributes, ["name", "label", "message_name"], `Flow message ${messageId}`);
+  const channel = readFromRecords([attributes, content, email], ["channel", "send_channel", "message_type"]);
+  const status = readFromRecords([attributes, content, email], ["status"]);
+  const subject = readFromRecords([attributes, content, email], ["subject", "subject_line", "email_subject"]);
+  const previewText = readFromRecords([attributes, content, email], ["preview_text", "previewText"]);
+  const fromEmail = readFromRecords([attributes, content, email], ["from_email", "fromEmail"]);
+  const fromLabel = readFromRecords([attributes, content, email], ["from_label", "fromLabel", "from_name"]);
+  const replyToEmail = readFromRecords([attributes, content, email], ["reply_to_email", "replyToEmail"]);
+
+  return {
+    flow_id: flowId,
+    action_id: actionId,
+    message_id: messageId,
+    name,
+    channel,
+    status,
+    subject,
+    preview_text: previewText,
+    from_email: fromEmail,
+    from_label: fromLabel,
+    reply_to_email: replyToEmail,
+    klaviyo_created_at: readOptionalString(attributes, ["created"]),
+    klaviyo_updated_at: readOptionalString(attributes, ["updated"]),
+    search_text: buildSearchText([flowId, actionId, messageId, name, channel, status, subject, fromLabel]),
+    raw_payload: record,
+  };
+}
+
 function dedupeByKey<T>(rows: T[], readKey: (row: T) => string) {
   return Array.from(new Map(rows.map((row) => [readKey(row), row])).values());
 }
@@ -1030,13 +1288,14 @@ export async function fetchPreferredKlaviyoConversionMetricId(params: {
 }
 
 async function fetchKlaviyoProfiles(region: KlaviyoRegionConfig) {
+  console.info(`[sync:klaviyo] Fetching profiles for region ${region.slug}.`);
+
   const collection = await fetchKlaviyoCollection({
     region,
     path: "profiles",
     label: "profiles",
     query: {
       "additional-fields[profile]": ["subscriptions", "predictive_analytics"],
-      "fields[profile]": klaviyoProfileFields,
       "page[size]": 100,
       sort: "-updated",
     },
@@ -1049,13 +1308,14 @@ async function fetchKlaviyoProfiles(region: KlaviyoRegionConfig) {
 }
 
 async function fetchKlaviyoAudiences(region: KlaviyoRegionConfig) {
+  console.info(`[sync:klaviyo] Fetching lists and segments for region ${region.slug}.`);
+
   const [lists, segments] = await Promise.all([
     fetchKlaviyoCollection({
       region,
       path: "lists",
       label: "lists",
       query: {
-        "fields[list]": klaviyoListFields,
         include: "tags",
         "page[size]": 10,
       },
@@ -1065,7 +1325,6 @@ async function fetchKlaviyoAudiences(region: KlaviyoRegionConfig) {
       path: "segments",
       label: "segments",
       query: {
-        "fields[segment]": klaviyoSegmentFields,
         include: "tags",
         "page[size]": 10,
       },
@@ -1107,6 +1366,10 @@ async function fetchKlaviyoAudienceMemberships(params: {
   const memberships: KlaviyoAudienceMembershipSyncRow[] = [];
   const profiles: KlaviyoProfileSyncRow[] = [];
 
+  console.info(
+    `[sync:klaviyo] Fetching memberships for ${params.audiences.length} audience(s) in region ${params.region.slug}.`,
+  );
+
   // Memberships are scoped under each list/segment, so we fan out after fetching the audience index.
   for (const audience of params.audiences) {
     const collection = await fetchKlaviyoCollection({
@@ -1114,10 +1377,9 @@ async function fetchKlaviyoAudienceMemberships(params: {
       path: `${audience.audience_type === "list" ? "lists" : "segments"}/${encodeURIComponent(
         audience.audience_id,
       )}/profiles`,
-      label: `${audience.audience_type} profiles`,
+      label: `${audience.audience_type} ${audience.audience_id} profiles`,
       query: {
-        "additional-fields[profile]": "subscriptions",
-        "fields[profile]": [...klaviyoProfileFields, "joined_group_at"],
+        "additional-fields[profile]": ["subscriptions", "predictive_analytics"],
         "page[size]": 100,
         sort: "joined_group_at",
       },
@@ -1149,13 +1411,12 @@ async function fetchKlaviyoAudienceMemberships(params: {
 }
 
 async function fetchKlaviyoMetrics(region: KlaviyoRegionConfig) {
+  console.info(`[sync:klaviyo] Fetching metrics for region ${region.slug}.`);
+
   const collection = await fetchKlaviyoCollection({
     region,
     path: "metrics",
     label: "metrics",
-    query: {
-      "fields[metric]": klaviyoMetricFields,
-    },
   });
 
   return collection.items.flatMap((item) => {
@@ -1171,12 +1432,16 @@ async function fetchKlaviyoEvents(params: {
 }) {
   const start = `${params.startDate}T00:00:00Z`;
   const end = `${params.endDate}T23:59:59Z`;
+
+  console.info(
+    `[sync:klaviyo] Fetching events for region ${params.region.slug} between ${params.startDate} and ${params.endDate}.`,
+  );
+
   const collection = await fetchKlaviyoCollection({
     region: params.region,
     path: "events",
     label: "events",
     query: {
-      "fields[event]": klaviyoEventFields,
       include: ["metric", "profile"],
       filter: `and(greater-or-equal(datetime,${start}),less-or-equal(datetime,${end}))`,
       "page[size]": 1000,
@@ -1191,13 +1456,13 @@ async function fetchKlaviyoEvents(params: {
 }
 
 async function fetchKlaviyoTags(region: KlaviyoRegionConfig) {
+  console.info(`[sync:klaviyo] Fetching tags for region ${region.slug}.`);
+
   const collection = await fetchKlaviyoCollection({
     region,
     path: "tags",
     label: "tags",
     query: {
-      "fields[tag]": ["id", "name"],
-      "fields[tag-group]": ["id", "name"],
       include: "tag-group",
       "page[size]": 50,
     },
@@ -1212,7 +1477,11 @@ async function fetchKlaviyoTags(region: KlaviyoRegionConfig) {
 
 async function fetchKlaviyoCampaignMetadata(region: KlaviyoRegionConfig) {
   const campaigns: KlaviyoCampaignMetadataSyncRow[] = [];
+  const campaignMessages: KlaviyoCampaignMessageSyncRow[] = [];
+  const campaignAudiences: KlaviyoCampaignAudienceSyncRow[] = [];
   const tagRelationships: KlaviyoTagRelationshipSyncRow[] = [];
+
+  console.info(`[sync:klaviyo] Fetching campaigns for region ${region.slug}.`);
 
   for (const channel of klaviyoCampaignChannels) {
     const collection = await fetchKlaviyoCollection({
@@ -1225,6 +1494,11 @@ async function fetchKlaviyoCampaignMetadata(region: KlaviyoRegionConfig) {
         "page[size]": 100,
       },
     });
+    const includedCampaignMessages = includedResourcesByType(collection.included, [
+      "campaign-message",
+      "campaign-messages",
+    ]);
+    const includedByKey = includedResourceMap(collection.included);
 
     campaigns.push(
       ...collection.items.flatMap((item) => {
@@ -1239,10 +1513,122 @@ async function fetchKlaviyoCampaignMetadata(region: KlaviyoRegionConfig) {
         return campaign ? tagRelationshipsFromResource(item, "campaign", campaign.campaign_id) : [];
       }),
     );
+
+    campaignAudiences.push(
+      ...collection.items.flatMap((item) => {
+        const campaign = campaignFromResponseItem(item, channel);
+
+        return campaign
+          ? campaignAudienceRelationshipsFromResource({
+              resource: item,
+              campaignId: campaign.campaign_id,
+            })
+          : [];
+      }),
+    );
+
+    collection.items.forEach((item) => {
+      const campaign = campaignFromResponseItem(item, channel);
+
+      if (!campaign) {
+        return;
+      }
+
+      readRelationshipIds(item, "campaign-messages").forEach((messageId) => {
+        const includedMessage =
+          includedByKey.get(`campaign-message:${messageId}`) || includedByKey.get(`campaign-messages:${messageId}`);
+
+        if (!includedMessage) {
+          return;
+        }
+
+        const message = campaignMessageFromResponseItem(includedMessage, campaign.campaign_id);
+
+        if (!message) {
+          return;
+        }
+
+        campaignMessages.push(message);
+        campaignAudiences.push(
+          ...campaignAudienceRelationshipsFromResource({
+            resource: includedMessage,
+            campaignId: campaign.campaign_id,
+            campaignMessageId: message.message_id,
+          }),
+        );
+      });
+    });
+
+    campaignMessages.push(
+      ...includedCampaignMessages.flatMap((item) => {
+        const campaignId = readRelationshipIds(item, "campaign")[0] || null;
+        const message = campaignMessageFromResponseItem(item, campaignId);
+        return message ? [message] : [];
+      }),
+    );
+
+    campaignAudiences.push(
+      ...includedCampaignMessages.flatMap((item) => {
+        const message = campaignMessageFromResponseItem(item, readRelationshipIds(item, "campaign")[0] || null);
+
+        return message
+          ? campaignAudienceRelationshipsFromResource({
+              resource: item,
+              campaignId: message.campaign_id,
+              campaignMessageId: message.message_id,
+            })
+          : [];
+      }),
+    );
   }
 
+  const dedupedCampaigns = dedupeByKey(campaigns, (campaign) => campaign.campaign_id);
+
+  for (const campaign of dedupedCampaigns) {
+    const collection = await fetchKlaviyoCollection({
+      region,
+      path: `campaigns/${encodeURIComponent(campaign.campaign_id)}/campaign-messages`,
+      label: `campaign ${campaign.campaign_id} messages`,
+    });
+
+    campaignMessages.push(
+      ...collection.items.flatMap((item) => {
+        const message = campaignMessageFromResponseItem(item, campaign.campaign_id);
+        return message ? [message] : [];
+      }),
+    );
+
+    campaignAudiences.push(
+      ...collection.items.flatMap((item) => {
+        const message = campaignMessageFromResponseItem(item, campaign.campaign_id);
+
+        return message
+          ? campaignAudienceRelationshipsFromResource({
+              resource: item,
+              campaignId: campaign.campaign_id,
+              campaignMessageId: message.message_id,
+            })
+          : [];
+      }),
+    );
+
+    await wait(120);
+  }
+
+  console.info(
+    `[sync:klaviyo] Normalized campaign metadata for region ${region.slug}: ` +
+      `${dedupedCampaigns.length} campaign(s), ${campaignMessages.length} campaign message row(s), ` +
+      `${campaignAudiences.length} campaign audience relationship row(s).`,
+  );
+
   return {
-    campaigns: dedupeByKey(campaigns, (campaign) => campaign.campaign_id),
+    campaigns: dedupedCampaigns,
+    campaignMessages: dedupeByKey(campaignMessages, (message) => message.message_id),
+    campaignAudiences: dedupeByKey(
+      campaignAudiences,
+      (audience) =>
+        `${audience.campaign_id}:${audience.campaign_message_id}:${audience.relationship_name}:${audience.audience_type}:${audience.audience_id}`,
+    ),
     tagRelationships: dedupeByKey(
       tagRelationships,
       (relationship) => `${relationship.tag_id}:${relationship.target_type}:${relationship.target_id}`,
@@ -1251,28 +1637,95 @@ async function fetchKlaviyoCampaignMetadata(region: KlaviyoRegionConfig) {
 }
 
 async function fetchKlaviyoFlowMetadata(region: KlaviyoRegionConfig) {
+  console.info(`[sync:klaviyo] Fetching flows for region ${region.slug}.`);
+
   const collection = await fetchKlaviyoCollection({
     region,
     path: "flows",
     label: "flows",
     query: {
-      "fields[flow]": klaviyoFlowFields,
       include: ["flow-actions", "tags"],
       "page[size]": 50,
     },
   });
 
+  const flowActions: KlaviyoFlowActionSyncRow[] = [];
+  const flowMessages: KlaviyoFlowMessageSyncRow[] = [];
   const flows = collection.items.flatMap((item) => {
     const flow = flowFromResponseItem(item);
     return flow ? [flow] : [];
   });
+  const includedFlowActions = includedResourcesByType(collection.included, ["flow-action", "flow-actions"]);
+
+  flowActions.push(
+    ...includedFlowActions.flatMap((item) => {
+      const action = flowActionFromResponseItem(item, readRelationshipIds(item, "flow")[0] || null);
+      return action ? [action] : [];
+    }),
+  );
+
   const tagRelationships = collection.items.flatMap((item) => {
     const flow = flowFromResponseItem(item);
     return flow ? tagRelationshipsFromResource(item, "flow", flow.flow_id) : [];
   });
 
+  for (const flow of flows) {
+    const actions = await fetchKlaviyoCollection({
+      region,
+      path: `flows/${encodeURIComponent(flow.flow_id)}/flow-actions`,
+      label: `flow ${flow.flow_id} actions`,
+      query: {
+        "page[size]": 50,
+      },
+    });
+    const normalizedActions = actions.items.flatMap((item) => {
+      const action = flowActionFromResponseItem(item, flow.flow_id);
+      return action ? [action] : [];
+    });
+
+    flowActions.push(...normalizedActions);
+
+    console.info(
+      `[sync:klaviyo] Flow ${flow.flow_id} in region ${region.slug} yielded ${normalizedActions.length} action row(s).`,
+    );
+
+    for (const action of normalizedActions) {
+      const messages = await fetchKlaviyoCollection({
+        region,
+        path: `flow-actions/${encodeURIComponent(action.action_id)}/flow-messages`,
+        label: `flow action ${action.action_id} messages`,
+        query: {
+          "page[size]": 50,
+        },
+      });
+
+      flowMessages.push(
+        ...messages.items.flatMap((item) => {
+          const message = flowMessageFromResponseItem({
+            value: item,
+            fallbackFlowId: flow.flow_id,
+            fallbackActionId: action.action_id,
+          });
+
+          return message ? [message] : [];
+        }),
+      );
+
+      await wait(350);
+    }
+
+    await wait(350);
+  }
+
+  console.info(
+    `[sync:klaviyo] Normalized flow metadata for region ${region.slug}: ` +
+      `${flows.length} flow(s), ${flowActions.length} flow action row(s), ${flowMessages.length} flow message row(s).`,
+  );
+
   return {
     flows,
+    flowActions: dedupeByKey(flowActions, (action) => action.action_id),
+    flowMessages: dedupeByKey(flowMessages, (message) => message.message_id),
     tagRelationships,
   };
 }
@@ -1317,13 +1770,20 @@ export async function fetchKlaviyoComprehensiveData(params: {
       (relationship) => `${relationship.tag_id}:${relationship.target_type}:${relationship.target_id}`,
     ),
     campaigns: campaignResult.campaigns,
+    campaignMessages: campaignResult.campaignMessages,
+    campaignAudiences: campaignResult.campaignAudiences,
     flows: flowResult.flows,
+    flowActions: flowResult.flowActions,
+    flowMessages: flowResult.flowMessages,
   };
 
   console.info(
     `[sync:klaviyo] Completed comprehensive object sync for region ${params.region.slug}: ` +
       `${data.profiles.length} profiles, ${data.audiences.length} audiences, ` +
-      `${data.audienceMemberships.length} memberships, ${data.events.length} events.`,
+      `${data.audienceMemberships.length} memberships, ${data.metrics.length} metrics, ` +
+      `${data.events.length} events, ${data.tags.length} tags, ${data.campaigns.length} campaigns, ` +
+      `${data.campaignMessages.length} campaign messages, ${data.campaignAudiences.length} campaign audiences, ` +
+      `${data.flows.length} flows, ${data.flowActions.length} flow actions, ${data.flowMessages.length} flow messages.`,
   );
 
   return data;

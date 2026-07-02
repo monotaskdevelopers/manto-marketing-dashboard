@@ -40,14 +40,16 @@ For the full platform connection guide, required scopes, smoke tests, and troubl
 - Apply `/supabase/migrations/S001-initial-analytics-dashboard.sql`.
 - Apply `/supabase/migrations/S002-platform-connections.sql`.
 - Apply `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql`.
+- Apply `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql`.
 - Confirm RLS is enabled on all public reporting tables.
 - Confirm authenticated users can read report tables.
 - Confirm anonymous users cannot read report tables.
-- Confirm anonymous users cannot read comprehensive Klaviyo profile, audience, membership, metric, event, tag, campaign, or flow tables.
+- Confirm anonymous users cannot read comprehensive Klaviyo profile, audience, membership, metric, event, tag,
+  campaign, campaign-message, campaign-audience, flow, flow-action, or flow-message tables.
 - Confirm service role writes are only used from server routes.
 - Configure email/password auth or approved identity provider.
 - Restrict signup to internal users through Supabase settings or an invitation workflow.
-- Ensure `DEMO_MODE` is `false` or unset. Local development currently uses demo mode so the UI can be reviewed without live credentials.
+- Ensure `DEMO_MODE` is `false` or unset. Use `DEMO_MODE=true` only for explicit local UI review without live credentials.
 
 ## Initial User Bootstrap
 
@@ -71,10 +73,13 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Create private keys with read-only or custom reporting scopes.
 - Grant `campaigns:read` and `flows:read` for campaign and flow reports.
 - Grant `profiles:read`, `lists:read`, `segments:read`, `tags:read`, `metrics:read`, and `events:read` for comprehensive recipient, audience, tag, metric, and event sync.
+- Keep `campaigns:read` and `flows:read` enabled for campaign messages, campaign audience relationships,
+  flow actions, and flow messages in addition to aggregate report pulls.
 - Keep `metrics:read` enabled so the app can auto-detect the conversion metric ID during Klaviyo connection and sync the metric library.
 - Confirm campaign and flow report endpoints return expected fields for each account.
 - Confirm comprehensive Klaviyo tables populate after manual sync for the largest account.
-- Confirm profile/event sync volume does not exceed the production function runtime; move this segment to a queue if it does.
+- Confirm profile/event/message/action sync volume does not exceed the production function runtime; move this
+  segment to a queue if it does.
 - Confirm the API revision is supported.
 - Store private keys only through `/settings`, where they are encrypted before being saved to Supabase.
 
@@ -91,8 +96,9 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Re-run `npm audit --omit=dev`; the current audit has a moderate transitive `postcss` advisory through Next.js and should be revisited before launch.
 - Verify login.
 - Verify dashboard report pages have been rebuilt, or explicitly accept the blank placeholder state for the release.
-- Verify the Campaigns scaffold is wired to live synced campaign data before using it for production reporting decisions.
-- Verify the Flows scaffold is wired to live synced flow data before using it for production reporting decisions.
+- Verify Campaigns displays live synced campaign report rows plus campaign metadata enrichment before using it for production reporting decisions.
+- Verify Flows displays live synced flow report rows plus flow metadata enrichment before using it for production reporting decisions.
+- Connect or remove the remaining visual-only Campaigns and Flows action/filter controls before production launch.
 - Verify `/settings` loads for authenticated users.
 - Verify a test region can be connected from `/settings`.
 - Verify disconnect removes encrypted Shopify/Klaviyo secrets from `platform_connections`.

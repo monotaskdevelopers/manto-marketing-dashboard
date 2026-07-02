@@ -21,7 +21,8 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Keep `APP_ENCRYPTION_KEY` server-only and outside Supabase.
 - Create bootstrap users only through trusted server-side admin tooling.
 - Store recipient-level Klaviyo profile data only in authenticated, RLS-protected Supabase tables.
-- Never log comprehensive Klaviyo profile, event, audience membership, or raw payload data.
+- Store campaign/flow message metadata and raw Klaviyo detail payloads only in authenticated, RLS-protected Supabase tables.
+- Never log comprehensive Klaviyo profile, event, audience membership, campaign message, flow message, or raw payload data.
 
 ## Known Risks
 
@@ -98,7 +99,8 @@ Mitigation:
 Risk:
 
 - Full Klaviyo sync stores recipient emails, phone numbers, names, locations, subscriptions, properties,
-  audience memberships, and event properties so internal reporting can search and filter them.
+  audience memberships, event properties, campaign message metadata, flow action metadata, flow message
+  metadata, and raw Klaviyo payloads so internal reporting can search and filter them.
 - Any authenticated internal user can currently read these tables under the MVP access model.
 
 Mitigation:
@@ -108,6 +110,8 @@ Mitigation:
 - Only the service-role sync path can write comprehensive Klaviyo data.
 - Keep logs count-only and never log raw Klaviyo payloads, profile identifiers, event properties, or
   membership details.
+- Keep campaign/flow message payloads server-side only; do not render raw payloads in the browser unless a
+  future authenticated report explicitly needs those fields.
 - Add RBAC or organization scoping before granting dashboard access to a broader audience.
 
 ### Currency Comparisons

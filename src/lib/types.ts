@@ -162,7 +162,7 @@ export type KlaviyoTagRelationship = {
   id: string;
   region_id: string;
   tag_id: string;
-  target_type: "list" | "segment" | "campaign" | "flow";
+  target_type: "list" | "segment" | "campaign" | "flow" | "campaign_message" | "flow_action" | "flow_message";
   target_id: string;
 };
 
@@ -189,6 +189,66 @@ export type KlaviyoFlow = {
   status: string | null;
   trigger_type: string | null;
   archived: boolean | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoCampaignMessage = {
+  id: string;
+  region_id: string;
+  campaign_id: string;
+  message_id: string;
+  name: string;
+  channel: string | null;
+  status: string | null;
+  subject: string | null;
+  preview_text: string | null;
+  from_email: string | null;
+  from_label: string | null;
+  reply_to_email: string | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoCampaignAudience = {
+  id: string;
+  region_id: string;
+  campaign_id: string;
+  campaign_message_id: string;
+  relationship_name: string;
+  audience_type: string;
+  audience_id: string;
+};
+
+export type KlaviyoFlowAction = {
+  id: string;
+  region_id: string;
+  flow_id: string;
+  action_id: string;
+  action_type: string | null;
+  status: string | null;
+  name: string | null;
+  klaviyo_created_at: string | null;
+  klaviyo_updated_at: string | null;
+  search_text: string;
+};
+
+export type KlaviyoFlowMessage = {
+  id: string;
+  region_id: string;
+  flow_id: string;
+  action_id: string;
+  message_id: string;
+  name: string;
+  channel: string | null;
+  status: string | null;
+  subject: string | null;
+  preview_text: string | null;
+  from_email: string | null;
+  from_label: string | null;
+  reply_to_email: string | null;
   klaviyo_created_at: string | null;
   klaviyo_updated_at: string | null;
   search_text: string;

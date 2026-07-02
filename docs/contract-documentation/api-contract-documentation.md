@@ -180,15 +180,24 @@ Endpoints used:
 - `GET /api/metrics`
 - `GET /api/events`
 - `GET /api/campaigns`
+- `GET /api/campaigns/{id}/campaign-messages`
 - `GET /api/flows`
+- `GET /api/flows/{id}/flow-actions`
+- `GET /api/flow-actions/{id}/flow-messages`
 
 Important safeguards:
 
-- Require read-only Klaviyo scopes for profiles, lists, segments, tags, metrics, events, campaigns, and flows.
+- Require read-only Klaviyo scopes for profiles, lists, segments, tags, metrics, events, campaigns, and flows;
+  campaign messages use `campaigns:read`, and flow actions/messages use `flows:read`.
 - Cursor-paginate until `links.next` is absent.
 - Filter events by the current sync date window.
 - Upsert comprehensive rows in batches.
 - Store full source objects in `raw_payload` JSONB while exposing indexed normalized columns for report queries.
 - Mark full-snapshot rows with `last_seen_sync_run_id` and prune stale rows after successful full fetches.
 - Do not prune `klaviyo_events` as a full snapshot because it is date-windowed event history.
+- Upsert campaign messages, campaign audience relationships, flow actions, and flow messages with deterministic
+  conflict targets so repeated manual/cron syncs update existing rows instead of duplicating them.
+- Preserve original campaign audience relationship names because Klaviyo can expose list, segment, included,
+  excluded, or generic audience links depending on channel and API revision.
+- Retry Klaviyo GET requests on 429 up to a small bounded limit, respecting `Retry-After` when Klaviyo sends it.
 - Log endpoint counts only; never log profile PII, event properties, or raw JSON payloads.

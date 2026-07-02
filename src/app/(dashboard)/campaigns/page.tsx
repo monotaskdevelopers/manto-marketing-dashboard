@@ -1,10 +1,11 @@
 /*
 File description:
-This Campaigns page renders the rebuilt Klaviyo-style campaign workspace. It currently provides the
-static UI scaffold for the campaign metrics, compact controls, and campaign table that will be wired to
-synced reporting data in a later implementation pass.
+This Campaigns page renders the rebuilt Klaviyo-style campaign workspace with real synced campaign report
+data. It keeps the visual layout close to Klaviyo while loading summary metrics, date filters, search
+state, and campaign rows through the server-side dashboard data pipeline.
 */
 
+import { clsx } from "clsx";
 import {
   CalendarDays,
   ChevronDown,
@@ -19,160 +20,271 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { clsx } from "clsx";
 import type { ReactNode } from "react";
 
-const performanceMetrics = [
-  {
-    value: "45.64%",
-    label: "Average open rate",
-    rating: "Fair",
-    tone: "yellow",
-    trend: "-1.05%",
-    trendTone: "down",
-  },
-  {
-    value: "1.39%",
-    label: "Average click rate",
-    rating: "Fair",
-    tone: "yellow",
-    trend: "0.09%",
-    trendTone: "up",
-  },
-  {
-    value: "0.08%",
-    label: "Placed Order",
-    rating: "Good",
-    tone: "blue",
-    trend: null,
-    trendTone: null,
-  },
-  {
-    value: "$0.11",
-    label: "Revenue per recipient",
-    rating: "Fair",
-    tone: "yellow",
-    trend: "-$0.04",
-    trendTone: "down",
-  },
-] as const;
-
-const campaignRows = [
-  {
-    name: "Free-Shipping-SMS-4thJuly",
-    audience: "SMS Subscribers",
-    messageType: "text",
-    status: "Sent",
-    sendDate: "Jun 30, 2026",
-    sendTime: "3:45 PM",
-    openRate: "n/a",
-    openMeta: "--",
-    clickRate: "6.08%",
-    clickMeta: "137 recipients",
-    placedOrder: "$1,107.27",
-    orderMeta: "10 recipients",
-  },
-  {
-    name: "freeshipping4thofjuly",
-    audience: "US-merged-lists, USA LIST GROWING, and USA New List",
-    messageType: "email",
-    status: "Sent",
-    sendDate: "Jun 29, 2026",
-    sendTime: "1:15 PM EDT",
-    openRate: "45.78%",
-    openMeta: "5,437 recipients",
-    clickRate: "2.64%",
-    clickMeta: "314 recipients",
-    placedOrder: "$2,900.77",
-    orderMeta: "27 recipients",
-  },
-  {
-    name: "LaunchEmail",
-    audience: "US-merged-lists, Canada Merged Lists, All global mark...",
-    messageType: "email",
-    status: "Sent",
-    sendDate: "Jun 24, 2026",
-    sendTime: "1:45 PM EDT",
-    openRate: "45.10%",
-    openMeta: "7,831 recipients",
-    clickRate: "0.71%",
-    clickMeta: "123 recipients",
-    placedOrder: "$1,264.09",
-    orderMeta: "11 recipients",
-  },
-  {
-    name: "SareesLaunch",
-    audience: "US-merged-lists, Canada Merged Lists, All global mark...",
-    messageType: "email",
-    status: "Sent",
-    sendDate: "Jun 15, 2026",
-    sendTime: "1:45 PM EDT",
-    openRate: "45.67%",
-    openMeta: "7,916 recipients",
-    clickRate: "1.34%",
-    clickMeta: "233 recipients",
-    placedOrder: "$1,749.97",
-    orderMeta: "11 recipients",
-  },
-  {
-    name: "Father's-Day-Warning",
-    audience: "US-merged-lists, Canada Merged Lists, All global mark...",
-    messageType: "email",
-    status: "Draft",
-    sendDate: "Jun 15, 2026",
-    sendTime: "7:33 AM EDT",
-    openRate: "--",
-    openMeta: "--",
-    clickRate: "--",
-    clickMeta: "--",
-    placedOrder: "--",
-    orderMeta: "--",
-  },
-  {
-    name: "Workwear-newlylaunched",
-    audience: "US-merged-lists, Canada Merged Lists, All global mark...",
-    messageType: "email",
-    status: "Sent",
-    sendDate: "Jun 8, 2026",
-    sendTime: "1:45 PM EDT",
-    openRate: "45.66%",
-    openMeta: "7,902 recipients",
-    clickRate: "1.22%",
-    clickMeta: "211 recipients",
-    placedOrder: "$1,593.39",
-    orderMeta: "8 recipients",
-  },
-  {
-    name: "Sheesh-Raima-Muskan-Tabeer-Newlylaunched (clone)",
-    audience: "US-merged-lists, Canada Merged Lists, All global mark...",
-    messageType: "email",
-    status: "Draft",
-    sendDate: "Jun 3, 2026",
-    sendTime: "3:06 AM EDT",
-    openRate: "--",
-    openMeta: "--",
-    clickRate: "--",
-    clickMeta: "--",
-    placedOrder: "--",
-    orderMeta: "--",
-  },
-  {
-    name: "Sheesh-Raima-Muskan-Tabeer-Newlylaunched",
-    audience: "US-merged-lists, Canada Merged Lists, All global mark...",
-    messageType: "ab",
-    status: "Sent",
-    sendDate: "Jun 2, 2026",
-    sendTime: "1:45 PM EDT",
-    openRate: "46.06%",
-    openMeta: "7,956 recipients",
-    clickRate: "1.45%",
-    clickMeta: "250 recipients",
-    placedOrder: "$1,421.88",
-    orderMeta: "10 recipients",
-  },
-] as const;
+import { requireUser } from "@/lib/auth";
+import { getDashboardData } from "@/lib/data/dashboard";
+import {
+  buildKlaviyoMetadataKey,
+  getCampaignMessagesByReportRows,
+  getCampaignMetadataByReportRows,
+} from "@/lib/data/klaviyo-metadata";
+import { parseDashboardFilters, type RawSearchParams } from "@/lib/filters";
+import { formatNumber } from "@/lib/format";
+import {
+  buildTrendLabel,
+  compareKlaviyoPerformanceByDate,
+  formatDateOnlyLabel,
+  formatPerformanceCurrency,
+  formatPerformancePercent,
+  getPerformanceRating,
+  getPresetLabel,
+  summarizeKlaviyoPerformanceRows,
+  type KlaviyoPerformanceMetricKey,
+  type PerformanceRating,
+} from "@/lib/marketing-performance";
+import {
+  filterAndSortKlaviyoSimpleRows,
+  getTableControlFieldNames,
+  klaviyoSimpleTableFilterOptions,
+  klaviyoSimpleTableSortOptions,
+  parseScopedTableState,
+} from "@/lib/report-table-controls";
+import type { DashboardFilters, KlaviyoCampaign, KlaviyoCampaignMessage, RankedCampaign } from "@/lib/types";
 
 const filterLabels = ["Audience", "Channels", "Status", "Tags", "A/B test", "Archived"] as const;
+
+type CampaignPageProps = {
+  searchParams: Promise<RawSearchParams>;
+};
+
+type CampaignMessageType = "text" | "email" | "ab";
+
+type CampaignMetricCard = {
+  value: string;
+  label: string;
+  rating: PerformanceRating;
+  trend: {
+    label: string;
+    tone: "up" | "down";
+  } | null;
+};
+
+function buildDashboardHiddenFields(filters: DashboardFilters) {
+  const fields = [
+    { name: "preset", value: filters.preset },
+    { name: "region", value: filters.regionSlug },
+  ];
+
+  if (filters.preset === "custom") {
+    fields.push(
+      { name: "start", value: filters.startDate },
+      { name: "end", value: filters.endDate },
+    );
+  }
+
+  return fields;
+}
+
+function getDateRangeLabel(filters: DashboardFilters) {
+  if (filters.preset === "custom") {
+    return `${formatDateOnlyLabel(filters.startDate)} - ${formatDateOnlyLabel(filters.endDate)}`;
+  }
+
+  const label = getPresetLabel(filters.preset);
+
+  return `${label.charAt(0).toUpperCase()}${label.slice(1)}`;
+}
+
+function getMetricCurrencyCode(rows: RankedCampaign[]) {
+  return rows[0]?.currency_code || "USD";
+}
+
+function buildMetricTrend({
+  rows,
+  filters,
+  metric,
+  formatter,
+}: {
+  rows: RankedCampaign[];
+  filters: DashboardFilters;
+  metric: KlaviyoPerformanceMetricKey;
+  formatter: (absoluteValue: number) => string;
+}): CampaignMetricCard["trend"] {
+  const delta = compareKlaviyoPerformanceByDate({
+    rows,
+    startDate: filters.startDate,
+    endDate: filters.endDate,
+    metric,
+  });
+
+  if (delta === null) {
+    return null;
+  }
+
+  const trend = buildTrendLabel({ delta, formatter });
+
+  if (trend.direction === "flat") {
+    return null;
+  }
+
+  return {
+    label: trend.label,
+    tone: trend.direction,
+  };
+}
+
+function buildCampaignMetrics({
+  rows,
+  filters,
+}: {
+  rows: RankedCampaign[];
+  filters: DashboardFilters;
+}): CampaignMetricCard[] {
+  const summary = summarizeKlaviyoPerformanceRows(rows);
+  const currencyCode = getMetricCurrencyCode(rows);
+
+  // These cards are calculated from the same synced rows as the table so the summary never drifts.
+  return [
+    {
+      value: formatPerformancePercent(summary.openRate),
+      label: "Average open rate",
+      rating: getPerformanceRating("openRate", summary.openRate),
+      trend: buildMetricTrend({
+        rows,
+        filters,
+        metric: "openRate",
+        formatter: formatPerformancePercent,
+      }),
+    },
+    {
+      value: formatPerformancePercent(summary.clickRate),
+      label: "Average click rate",
+      rating: getPerformanceRating("clickRate", summary.clickRate),
+      trend: buildMetricTrend({
+        rows,
+        filters,
+        metric: "clickRate",
+        formatter: formatPerformancePercent,
+      }),
+    },
+    {
+      value: formatPerformancePercent(summary.conversionRate),
+      label: "Placed Order",
+      rating: getPerformanceRating("conversionRate", summary.conversionRate),
+      trend: null,
+    },
+    {
+      value: formatPerformanceCurrency(summary.revenuePerRecipient, currencyCode),
+      label: "Revenue per recipient",
+      rating: getPerformanceRating("revenuePerRecipient", summary.revenuePerRecipient),
+      trend: buildMetricTrend({
+        rows,
+        filters,
+        metric: "revenuePerRecipient",
+        formatter: (value) => formatPerformanceCurrency(value, currencyCode),
+      }),
+    },
+  ];
+}
+
+function inferCampaignMessageType({
+  row,
+  metadata,
+  messages,
+}: {
+  row: RankedCampaign;
+  metadata: KlaviyoCampaign | undefined;
+  messages: KlaviyoCampaignMessage[];
+}): CampaignMessageType {
+  const name = row.campaign_name.toLowerCase();
+  const messageChannel = messages.find((message) => message.channel)?.channel?.toLowerCase() || "";
+  const channel = messageChannel || metadata?.channel?.toLowerCase() || "";
+
+  if (messages.length > 1 || name.includes("a/b") || name.includes("ab test") || name.includes("split")) {
+    return "ab";
+  }
+
+  if (channel.includes("sms") || channel.includes("text")) {
+    return "text";
+  }
+
+  if (channel.includes("email")) {
+    return "email";
+  }
+
+  // Klaviyo's reporting table does not expose message type, so infer only from synced campaign names.
+  if (name.includes("sms") || name.includes("text")) {
+    return "text";
+  }
+
+  return "email";
+}
+
+function formatStatusLabel(value: string | null | undefined, fallback: string) {
+  const normalized = (value || fallback).replace(/[_-]+/g, " ").trim();
+
+  return normalized
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1).toLowerCase()}`)
+    .join(" ");
+}
+
+function getCampaignStatusLabel(metadata: KlaviyoCampaign | undefined) {
+  if (metadata?.archived) {
+    return "Archived";
+  }
+
+  return formatStatusLabel(metadata?.status, "Sent");
+}
+
+function formatTimestampParts(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return {
+    date: new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(date),
+    detail: new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(date),
+  };
+}
+
+function getCampaignSendDate(row: RankedCampaign, metadata: KlaviyoCampaign | undefined) {
+  return formatTimestampParts(metadata?.send_at || metadata?.scheduled_at) || {
+    date: formatDateOnlyLabel(row.send_date),
+    detail: null,
+  };
+}
+
+function formatRecipientLabel(value: number) {
+  return `${formatNumber(value)} recipient${value === 1 ? "" : "s"}`;
+}
+
+function formatCountLabel(value: number, singular: string, plural: string) {
+  return `${formatNumber(value)} ${value === 1 ? singular : plural}`;
+}
+
+function formatRateForRow(value: number, denominator: number) {
+  if (!denominator) {
+    return "n/a";
+  }
+
+  return formatPerformancePercent(value);
+}
 
 function ToolbarButton({
   children,
@@ -289,13 +401,19 @@ function MessageTypeIcon({
 function StatusPill({
   status,
 }: {
-  status: "Sent" | "Draft";
+  status: string;
 }) {
+  const normalizedStatus = status.toLowerCase();
+  const isPositive = ["sent", "live", "active"].includes(normalizedStatus);
+  const isScheduled = normalizedStatus.includes("scheduled");
+
   return (
     <span
       className={clsx(
         "inline-flex h-7 items-center rounded-full px-3 text-sm font-medium",
-        status === "Sent" ? "bg-[#d8f8e4] text-[#176b3a]" : "bg-[#eceef0] text-[#575b61]",
+        isPositive && "bg-[#d8f8e4] text-[#176b3a]",
+        isScheduled && "bg-[#fff4bc] text-[#675c18]",
+        !isPositive && !isScheduled && "bg-[#eceef0] text-[#575b61]",
       )}
     >
       {status}
@@ -303,7 +421,32 @@ function StatusPill({
   );
 }
 
-export default function CampaignsPage() {
+export default async function CampaignsPage({ searchParams }: CampaignPageProps) {
+  const rawSearchParams = await searchParams;
+  const filters = parseDashboardFilters(rawSearchParams);
+
+  // Re-check auth in the page so report reads never race ahead of the protected layout redirect.
+  await requireUser();
+
+  const data = await getDashboardData(filters);
+  const campaignFieldNames = getTableControlFieldNames("campaign");
+  const campaignTableState = parseScopedTableState({
+    searchParams: rawSearchParams,
+    fieldNames: campaignFieldNames,
+    sortOptions: klaviyoSimpleTableSortOptions,
+    filterOptions: klaviyoSimpleTableFilterOptions,
+    defaultSort: "date_desc",
+    defaultFilter: "all",
+  });
+  const campaignRows = filterAndSortKlaviyoSimpleRows(data.campaignRows, campaignTableState);
+  const performanceMetrics = buildCampaignMetrics({ rows: data.campaignRows, filters });
+  const [campaignMetadataByKey, campaignMessagesByKey] = await Promise.all([
+    getCampaignMetadataByReportRows(data.campaignRows),
+    getCampaignMessagesByReportRows(data.campaignRows),
+  ]);
+  const hiddenDashboardFields = buildDashboardHiddenFields(filters);
+  const dateRangeLabel = getDateRangeLabel(filters);
+
   return (
     <div className="min-h-screen bg-[#f5f6f8] p-3 text-[#26292f] sm:p-5">
       <section className="min-h-[calc(100vh-40px)] overflow-hidden rounded-[14px] border border-[#e2e5e9] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -342,7 +485,9 @@ export default function CampaignsPage() {
           <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="inline-flex items-center gap-3">
               <ChevronUp aria-hidden="true" className="h-5 w-5 text-[#24272c]" />
-              <h2 className="text-base font-semibold text-[#32363c]">Email performance last 30 days</h2>
+              <h2 className="text-base font-semibold text-[#32363c]">
+                Email performance {dateRangeLabel.toLowerCase()}
+              </h2>
             </div>
             <ToolbarButton>View benchmarks</ToolbarButton>
           </div>
@@ -354,13 +499,15 @@ export default function CampaignsPage() {
                   <p className="text-[36px] font-semibold leading-none tracking-normal text-[#202328]">
                     {metric.value}
                   </p>
-                  {metric.trend && metric.trendTone ? (
-                    <TrendPill tone={metric.trendTone}>{metric.trend}</TrendPill>
+                  {metric.trend ? (
+                    <TrendPill tone={metric.trend.tone}>{metric.trend.label}</TrendPill>
                   ) : null}
                 </div>
                 <p className="mt-2 text-base font-semibold text-[#2e3136]">{metric.label}</p>
                 <div className="mt-3">
-                  <RatingPill tone={metric.tone}>{metric.rating}</RatingPill>
+                  <RatingPill tone={metric.rating.tone === "good" ? "blue" : "yellow"}>
+                    {metric.rating.label}
+                  </RatingPill>
                 </div>
               </article>
             ))}
@@ -368,7 +515,10 @@ export default function CampaignsPage() {
         </section>
 
         <section className="px-5 pb-6">
-          <div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+          <form method="get" className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            {hiddenDashboardFields.map((field) => (
+              <input key={field.name} type="hidden" name={field.name} value={field.value} />
+            ))}
             <div className="flex min-w-0 flex-wrap items-end gap-2">
               <label className="relative block h-9 w-full max-w-[250px] sm:w-[250px]">
                 <span className="sr-only">Search campaigns</span>
@@ -377,10 +527,15 @@ export default function CampaignsPage() {
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#777c84]"
                 />
                 <input
+                  name={campaignFieldNames.query}
                   type="search"
                   placeholder="Search campaigns"
+                  defaultValue={campaignTableState.query}
                   className="h-9 w-full rounded-[7px] border border-[#d8dde3] bg-white pl-10 pr-3 text-sm text-[#2e3136] placeholder:text-[#80858d]"
                 />
+                <button type="submit" className="sr-only">
+                  Search campaigns
+                </button>
               </label>
 
               <div>
@@ -388,7 +543,7 @@ export default function CampaignsPage() {
                 <FilterButton>
                   <span className="inline-flex items-center gap-2">
                     <CalendarDays aria-hidden="true" className="h-4 w-4 text-[#62666d]" />
-                    Last 30 days
+                    {dateRangeLabel}
                   </span>
                   <ChevronDown aria-hidden="true" className="h-4 w-4" />
                 </FilterButton>
@@ -419,7 +574,7 @@ export default function CampaignsPage() {
             >
               <SlidersHorizontal aria-hidden="true" className="h-5 w-5" />
             </button>
-          </div>
+          </form>
 
           <div className="overflow-x-auto">
             <table className="min-w-[1120px] w-full border-collapse text-left">
@@ -443,60 +598,98 @@ export default function CampaignsPage() {
                 </tr>
               </thead>
               <tbody>
-                {campaignRows.map((row) => (
-                  <tr key={row.name} className="border-b border-[#eff1f4] text-sm text-[#4f5359]">
-                    <td className="px-2 py-3 align-middle">
-                      <input
-                        type="checkbox"
-                        aria-label={`Select ${row.name}`}
-                        className="h-5 w-5 rounded border-[#aeb4bc]"
-                      />
-                    </td>
-                    <td className="max-w-[360px] px-2 py-3 align-middle">
-                      <button type="button" className="text-left font-medium text-[#2d6cff] hover:underline">
-                        {row.name}
-                      </button>
-                      <p className="mt-1 truncate text-sm font-medium text-[#666b72]">{row.audience}</p>
-                    </td>
-                    <td className="px-2 py-3 align-middle">
-                      <MessageTypeIcon type={row.messageType} />
-                    </td>
-                    <td className="px-2 py-3 align-middle">
-                      <StatusPill status={row.status} />
-                    </td>
-                    <td className="px-2 py-3 align-middle text-[#34383e]">
-                      <p>{row.sendDate}</p>
-                      <p className="mt-1 text-sm text-[#666b72]">{row.sendTime}</p>
-                    </td>
-                    <td className="px-2 py-3 text-right align-middle">
-                      <p className={row.openRate.includes("%") ? "font-medium text-[#2d6cff]" : "font-medium text-[#34383e]"}>
-                        {row.openRate}
-                      </p>
-                      <p className="mt-1 text-sm text-[#666b72]">{row.openMeta}</p>
-                    </td>
-                    <td className="px-2 py-3 text-right align-middle">
-                      <p className={row.clickRate.includes("%") ? "font-medium text-[#2d6cff]" : "font-medium text-[#34383e]"}>
-                        {row.clickRate}
-                      </p>
-                      <p className="mt-1 text-sm text-[#666b72]">{row.clickMeta}</p>
-                    </td>
-                    <td className="px-2 py-3 text-right align-middle">
-                      <p className={row.placedOrder.startsWith("$") ? "font-medium text-[#2d6cff]" : "font-medium text-[#34383e]"}>
-                        {row.placedOrder}
-                      </p>
-                      <p className="mt-1 text-sm text-[#666b72]">{row.orderMeta}</p>
-                    </td>
-                    <td className="px-2 py-3 text-right align-middle">
-                      <button
-                        type="button"
-                        aria-label={`More actions for ${row.name}`}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] text-[#1f2328] hover:bg-[#f3f4f6]"
-                      >
-                        <MoreVertical aria-hidden="true" className="h-5 w-5" />
-                      </button>
+                {campaignRows.map((row) => {
+                  const metadata = campaignMetadataByKey.get(
+                    buildKlaviyoMetadataKey(row.region_id, row.campaign_id),
+                  );
+                  const messages = campaignMessagesByKey.get(
+                    buildKlaviyoMetadataKey(row.region_id, row.campaign_id),
+                  ) || [];
+                  const displayName = metadata?.name || row.campaign_name;
+                  const campaignStatus = getCampaignStatusLabel(metadata);
+                  const sendDate = getCampaignSendDate(row, metadata);
+                  const messageType = inferCampaignMessageType({ row, metadata, messages });
+                  const openRate = formatRateForRow(row.openRate, row.recipients_count);
+                  const clickRate = formatRateForRow(row.clickRate, row.recipients_count);
+                  const placedOrderRevenue = formatPerformanceCurrency(row.revenue_amount, row.currency_code);
+
+                  return (
+                    <tr key={row.id} className="border-b border-[#eff1f4] text-sm text-[#4f5359]">
+                      <td className="px-2 py-3 align-middle">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${displayName}`}
+                          className="h-5 w-5 rounded border-[#aeb4bc]"
+                        />
+                      </td>
+                      <td className="max-w-[360px] px-2 py-3 align-middle">
+                        <button
+                          type="button"
+                          className="text-left font-medium text-[#2d6cff] hover:underline"
+                        >
+                          {displayName}
+                        </button>
+                        <p className="mt-1 truncate text-sm font-medium text-[#666b72]">{row.region_name}</p>
+                      </td>
+                      <td className="px-2 py-3 align-middle">
+                        <MessageTypeIcon type={messageType} />
+                      </td>
+                      <td className="px-2 py-3 align-middle">
+                        <StatusPill status={campaignStatus} />
+                      </td>
+                      <td className="px-2 py-3 align-middle text-[#34383e]">
+                        <p>{sendDate.date}</p>
+                        {sendDate.detail ? (
+                          <p className="mt-1 text-sm text-[#666b72]">{sendDate.detail}</p>
+                        ) : null}
+                      </td>
+                      <td className="px-2 py-3 text-right align-middle">
+                        <p
+                          className={
+                            openRate.includes("%") ? "font-medium text-[#2d6cff]" : "font-medium text-[#34383e]"
+                          }
+                        >
+                          {openRate}
+                        </p>
+                        <p className="mt-1 text-sm text-[#666b72]">{formatRecipientLabel(row.recipients_count)}</p>
+                      </td>
+                      <td className="px-2 py-3 text-right align-middle">
+                        <p
+                          className={
+                            clickRate.includes("%") ? "font-medium text-[#2d6cff]" : "font-medium text-[#34383e]"
+                          }
+                        >
+                          {clickRate}
+                        </p>
+                        <p className="mt-1 text-sm text-[#666b72]">
+                          {formatCountLabel(row.clicks_count, "click", "clicks")}
+                        </p>
+                      </td>
+                      <td className="px-2 py-3 text-right align-middle">
+                        <p className="font-medium text-[#2d6cff]">{placedOrderRevenue}</p>
+                        <p className="mt-1 text-sm text-[#666b72]">
+                          {formatRecipientLabel(row.conversions_count)}
+                        </p>
+                      </td>
+                      <td className="px-2 py-3 text-right align-middle">
+                        <button
+                          type="button"
+                          aria-label={`More actions for ${displayName}`}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[7px] text-[#1f2328] hover:bg-[#f3f4f6]"
+                        >
+                          <MoreVertical aria-hidden="true" className="h-5 w-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {!campaignRows.length ? (
+                  <tr>
+                    <td colSpan={9} className="px-2 py-16 text-center text-sm font-medium text-[#666b72]">
+                      No campaign data is available for the selected filters.
                     </td>
                   </tr>
-                ))}
+                ) : null}
               </tbody>
             </table>
           </div>

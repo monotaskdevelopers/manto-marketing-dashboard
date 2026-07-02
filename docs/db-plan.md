@@ -18,6 +18,7 @@ Supabase Postgres stores normalized reporting data fetched from Shopify and Klav
 | `/supabase/migrations/S001-initial-analytics-dashboard.sql` | Creates the MVP reporting schema, indexes, grants, and RLS policies. |
 | `/supabase/migrations/S002-platform-connections.sql` | Adds database-backed platform connection storage with encrypted secret columns and service-role-only access. |
 | `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds comprehensive Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage for reporting/search/filter use. |
+| `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql` | Adds campaign messages, campaign audience relationships, flow actions, and flow messages for detailed Klaviyo reporting joins. |
 
 ## Tables
 
@@ -229,13 +230,13 @@ Important columns:
 
 ### `klaviyo_tag_relationships`
 
-Stores tag links to synced lists, segments, campaigns, and flows.
+Stores tag links to synced lists, segments, campaigns, flows, campaign messages, flow actions, and flow messages.
 
 Important columns:
 
 - `region_id`.
 - `tag_id`.
-- `target_type`: `list`, `segment`, `campaign`, or `flow`.
+- `target_type`: `list`, `segment`, `campaign`, `flow`, `campaign_message`, `flow_action`, or `flow_message`.
 - `target_id`.
 - `raw_payload`.
 
@@ -253,6 +254,37 @@ Important columns:
 - `search_text`.
 - `raw_payload`.
 
+### `klaviyo_campaign_messages`
+
+Stores Klaviyo campaign message records so reports can filter and search at the message/channel level while
+joining back to the campaign metadata table.
+
+Important columns:
+
+- `region_id`.
+- `campaign_id`.
+- `message_id`.
+- `name`, `channel`, `status`.
+- `subject`, `preview_text`, `from_email`, `from_label`, `reply_to_email`.
+- `klaviyo_created_at`, `klaviyo_updated_at`.
+- `search_text`.
+- `raw_payload`.
+
+### `klaviyo_campaign_audiences`
+
+Stores campaign and campaign-message targeting relationships when Klaviyo exposes list, segment, or audience
+relationships in the campaign API response.
+
+Important columns:
+
+- `region_id`.
+- `campaign_id`.
+- `campaign_message_id`: empty string when the relationship belongs directly to the campaign.
+- `relationship_name`: original Klaviyo relationship key, such as `audiences`, `included-lists`, or `excluded-segments`.
+- `audience_type`: normalized relationship resource type.
+- `audience_id`.
+- `raw_payload`.
+
 ### `klaviyo_flows`
 
 Stores Klaviyo flow metadata separately from aggregate flow report rows.
@@ -262,6 +294,37 @@ Important columns:
 - `region_id`.
 - `flow_id`.
 - `name`, `status`, `trigger_type`, `archived`.
+- `klaviyo_created_at`, `klaviyo_updated_at`.
+- `search_text`.
+- `raw_payload`.
+
+### `klaviyo_flow_actions`
+
+Stores Klaviyo flow action records so reports can join flow performance to the action chain and search/filter by
+action status or type.
+
+Important columns:
+
+- `region_id`.
+- `flow_id`.
+- `action_id`.
+- `action_type`, `status`, `name`.
+- `klaviyo_created_at`, `klaviyo_updated_at`.
+- `search_text`.
+- `raw_payload`.
+
+### `klaviyo_flow_messages`
+
+Stores Klaviyo flow message records attached to flow actions.
+
+Important columns:
+
+- `region_id`.
+- `flow_id`.
+- `action_id`.
+- `message_id`.
+- `name`, `channel`, `status`.
+- `subject`, `preview_text`, `from_email`, `from_label`, `reply_to_email`.
 - `klaviyo_created_at`, `klaviyo_updated_at`.
 - `search_text`.
 - `raw_payload`.
@@ -282,6 +345,9 @@ Indexes target the dashboard's main filters:
 - Klaviyo membership joins by audience and by profile.
 - Klaviyo event reports by event date, metric/date, profile/date, and JSONB event properties.
 - Klaviyo tag, campaign, flow, and metric searches by indexed names and `search_text`.
+- Klaviyo campaign message searches by campaign, channel/status, raw payload JSONB, and `search_text`.
+- Klaviyo campaign audience joins by campaign, message, audience type, and audience ID.
+- Klaviyo flow action and flow message joins by flow/action/message, channel/status, raw payload JSONB, and `search_text`.
 
 ## RLS Plan
 
@@ -296,12 +362,15 @@ Indexes target the dashboard's main filters:
 - Authenticated users can select comprehensive Klaviyo data for internal reporting.
 - Anonymous users cannot read comprehensive Klaviyo data.
 - Service-role sync code is the only writer for comprehensive Klaviyo data.
+- Campaign/flow detail tables follow the same authenticated-read and service-role-write posture.
 
 ## Data Retention
 
 For MVP, keep all synced reporting rows indefinitely. Comprehensive Klaviyo full-snapshot tables remove stale
 rows after a successful full fetch by comparing `last_seen_sync_run_id`. `klaviyo_events` keeps date-windowed
 events indefinitely because events are append/update records and older dashboard ranges may need history.
+Campaign messages, campaign audiences, flow actions, and flow messages are also full-snapshot tables and are
+pruned by `last_seen_sync_run_id` after a successful comprehensive Klaviyo fetch.
 
 If profile or event tables grow too large, add date partitioning for `klaviyo_events`, retention policy
 options by metric, and possibly dedicated profile search materialization.

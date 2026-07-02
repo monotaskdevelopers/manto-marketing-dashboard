@@ -73,7 +73,7 @@ This keeps the tool easier to operate for non-developers while still avoiding pl
 | Encryption helper | `/src/lib/security/secret-encryption.ts` | Encrypts and decrypts platform secrets with AES-256-GCM. |
 | Region config loader | `/src/lib/config/regions.ts` | Loads active connected regions from Supabase for sync. |
 | Shopify client | `/src/lib/integrations/shopify.ts` | Calls Shopify Admin GraphQL and aggregates orders by day. |
-| Klaviyo client | `/src/lib/integrations/klaviyo.ts` | Calls Klaviyo reporting endpoints plus profiles, audiences, memberships, tags, metrics, events, campaigns, and flows. |
+| Klaviyo client | `/src/lib/integrations/klaviyo.ts` | Calls Klaviyo reporting endpoints plus profiles, audiences, memberships, tags, metrics, events, campaigns, campaign messages, campaign audiences, flows, flow actions, and flow messages. |
 | Sync orchestrator | `/src/lib/sync/run-sync.ts` | Runs each active connected region, writes rows to Supabase in batches, and marks partial Klaviyo segments separately. |
 | DB migration | `/supabase/migrations/S002-platform-connections.sql` | Adds `platform_connections` with RLS and service-role-only writes. |
 | DB migration | `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds comprehensive Klaviyo data tables with RLS, indexes, and raw JSON payload retention. |
@@ -309,7 +309,10 @@ Comprehensive sync calls these Klaviyo GET endpoints:
 - `GET /api/metrics` for metric names and integration metadata.
 - `GET /api/events` for events inside the current sync date window.
 - `GET /api/campaigns` for email, SMS, and mobile push campaign metadata.
+- `GET /api/campaigns/{id}/campaign-messages` for campaign message metadata.
 - `GET /api/flows` for flow metadata.
+- `GET /api/flows/{id}/flow-actions` for flow action metadata.
+- `GET /api/flow-actions/{id}/flow-messages` for flow message metadata.
 
 Important implementation detail:
 
@@ -318,8 +321,10 @@ Important implementation detail:
 - Full-snapshot comprehensive tables use `last_seen_sync_run_id` so removed Klaviyo objects can be pruned
   after a successful full fetch.
 - `klaviyo_events` is date-windowed by the manual/cron sync range and is not pruned as a full snapshot.
+- Campaign messages, campaign audience relationships, flow actions, and flow messages are full-snapshot
+  resources and are pruned after a successful comprehensive fetch.
 - Logs must show counts and endpoint names only, never profile emails, phone numbers, names, raw event
-  properties, or full Klaviyo payloads.
+  properties, campaign/flow message payloads, or full Klaviyo payloads.
 
 ## Disconnect Behavior
 

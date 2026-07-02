@@ -19,12 +19,13 @@ engagement quality, and placed-order revenue.
 - Average click rate.
 - Placed Order percentage.
 - Revenue per recipient.
-- Campaign table with sample campaign rows.
+- Campaign table populated from synced `klaviyo_campaign_reports` rows.
+- Campaign name, status, send timestamp, and channel/type enrichment from synced `klaviyo_campaigns` and `klaviyo_campaign_messages` metadata when available.
 
 ## Features
 
-- Search field.
-- Date range control.
+- Server-rendered search field using the `campaignQ` URL parameter.
+- Date range display based on the shared dashboard date filters.
 - Audience, Channels, Status, Tags, A/B test, and Archived filter controls.
 - Placed Order metric selector.
 - Table display settings button.
@@ -33,12 +34,12 @@ engagement quality, and placed-order revenue.
 
 ## Security Concerns
 
-- Must require authentication through the shared dashboard layout.
+- Must require authentication through both the shared dashboard layout and the page-level guard before report reads.
 - Must not expose Klaviyo API keys, raw API responses, sync credentials, or recipient PII.
-- Current rows are static UI scaffold data, not live reporting output.
+- Uses authenticated server-side Supabase reads and only renders aggregate report fields plus safe object metadata.
 
 ## Known Gaps
 
-- Search and filters are visual controls only.
-- Table rows are static scaffold rows and must be connected to synced campaign reporting data.
+- Audience, Channels, Status, Tags, A/B test, Archived, metric selector, and table display controls are visual controls only.
+- Campaign message type falls back to safe name-based inference if comprehensive campaign/message metadata has not been synced yet.
 - Create campaign, View library, Calendar, benchmarks, and row action controls are visual placeholders.

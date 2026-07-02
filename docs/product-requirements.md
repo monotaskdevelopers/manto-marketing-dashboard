@@ -22,8 +22,9 @@ The tool should reduce manual spreadsheet compilation and make it easier to answ
 ## MVP Scope
 
 Current implementation note: most reporting pages are intentionally blank during the UI redesign reset.
-Settings remains operational, and Campaigns and Flows have rebuilt UI scaffolds. The scope below remains
-the target product scope for the rebuilt pages.
+Settings remains operational, and Campaigns and Flows have rebuilt Klaviyo-style pages backed by synced
+report rows, URL-driven search, and safe Klaviyo object metadata. The scope below remains the target
+product scope for the rebuilt pages.
 
 In scope:
 

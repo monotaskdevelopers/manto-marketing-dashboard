@@ -15,8 +15,8 @@ behavior.
 | Manual sync range cap | `src/app/api/sync/route.ts` | Prevents excessive manual sync windows. | Keep and tune based on real usage. |
 | Settings credential entry | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Lets local/staging users connect Shopify and Klaviyo credentials separately through guided modals. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
 | Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings`, `/campaigns`, `/klaviyo/campaigns`, `/flows`, and `/klaviyo/flows` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
-| Static Campaigns UI scaffold | `/src/app/(dashboard)/campaigns/page.tsx` | Recreates the requested campaign layout before filters and rows are wired to live reporting data. | Connect controls and table rows to synced campaign data before production analytics use. |
-| Static Flows UI scaffold | `/src/app/(dashboard)/flows/page.tsx` | Recreates the requested flow layout before filters and rows are wired to live reporting data. | Connect controls and table rows to synced flow data before production analytics use. |
+| Campaigns visual-only controls | `/src/app/(dashboard)/campaigns/page.tsx` | Keeps Klaviyo-style controls for library, calendar, benchmarks, advanced filters, and row actions while the table itself reads synced campaign data. | Connect or remove visual-only controls before production analytics use. |
+| Flows visual-only controls | `/src/app/(dashboard)/flows/page.tsx` | Keeps Klaviyo-style controls for analytics, options, advanced filters, and row actions while the table itself reads synced flow data. | Connect or remove visual-only controls before production analytics use. |
 
 ## Verification Plan
 
@@ -27,8 +27,8 @@ behavior.
 - Verify cron route rejects missing or invalid `CRON_SECRET`.
 - Verify manual sync rejects unauthenticated requests.
 - Verify `/dashboard` and blank report routes intentionally render only the shared app shell while placeholders are active.
-- Verify `/campaigns` and `/klaviyo/campaigns` render the rebuilt campaign workspace and do not expose secrets or raw API payloads.
-- Verify `/flows` and `/klaviyo/flows` render the rebuilt flow workspace and do not expose secrets or raw API payloads.
+- Verify `/campaigns` and `/klaviyo/campaigns` render synced campaign report rows, campaign metadata enrichment, and no secrets or raw API payloads.
+- Verify `/flows` and `/klaviyo/flows` render synced flow report rows, flow metadata enrichment, and no secrets or raw API payloads.
 - Verify Settings rejects unauthenticated users through dashboard auth.
 - Verify Settings does not render saved platform secret values.
 - Verify the Shopify connect button opens the Shopify step-by-step modal.
@@ -41,14 +41,15 @@ behavior.
 - Verify Klaviyo sync requests use `bounced`, endpoint-required `group_by` fields, and a detected `conversion_metric_id`.
 - Verify Klaviyo message/channel result groups are collapsed into unique campaign/date and flow/date rows before database upsert.
 - Verify comprehensive Klaviyo sync fetches profiles, lists, segments, audience memberships, tags, metrics,
-  events, campaigns, and flows when the private key has all read scopes.
+  events, campaigns, campaign messages, campaign audience relationships, flows, flow actions, and flow
+  messages when the private key has all read scopes.
 - Verify comprehensive Klaviyo sync marks the run partial, without breaking aggregate campaign/flow reports,
   when a comprehensive-only scope such as `tags:read` or `events:read` is missing.
 - Verify comprehensive Klaviyo tables are searchable/filterable by indexed date, audience, profile, metric,
-  status, and `search_text` columns.
+  campaign message, flow action, flow message, status, and `search_text` columns.
 - Verify Klaviyo 400/429 logs include sanitized JSON:API error summaries without API keys, auth headers, raw payloads, or customer data.
 - Verify comprehensive Klaviyo logs never include profile emails, phone numbers, names, audience membership
-  details, event properties, or raw payloads.
+  details, campaign/flow message payloads, event properties, or raw payloads.
 - Verify Supabase write logs include table, conflict target, row count, and sanitized PostgREST error details without secrets.
 
 ## Verification Completed

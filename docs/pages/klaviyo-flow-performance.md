@@ -1,7 +1,7 @@
 <!--
 File description:
 This file documents the Klaviyo Flow Performance page. It explains that the nested Klaviyo route reuses
-the rebuilt Flows workspace and records the remaining data-wiring work.
+the rebuilt Flows workspace and records the remaining production control gaps.
 -->
 
 # Klaviyo Flow Performance
@@ -15,20 +15,22 @@ hierarchy.
 
 - Same Flows workspace as `/flows`.
 - Flow filters.
-- Flow table scaffold.
+- Flow table populated from synced flow report rows.
 
 ## Features
 
 - Reuses the top-level `/flows` page implementation.
 - Preserves the existing nested sidebar destination.
+- Uses the same server-side search, metric period filters, flow/message metadata enrichment, and empty states as `/flows`.
 - Shows Flow Name, Type, Status, Last Updated, Revenue, and Revenue per recipient columns.
 
 ## Security Concerns
 
-- Must require the authenticated dashboard layout.
+- Must require the authenticated dashboard layout and the shared Flows page-level guard before report reads.
 - Must not expose Klaviyo private keys, raw API responses, sync credentials, or recipient PII.
-- Current rows are static UI scaffold data, not live reporting output.
+- Uses authenticated server-side Supabase reads and renders safe aggregate reporting fields only.
 
 ## Known Gaps
 
-- Flow controls and table rows must be connected to synced flow reporting data before production analytics use.
+- Flow action buttons and advanced filters are still visual placeholders.
+- Flow type falls back to conservative name-based inference when flow message channel metadata is unavailable.

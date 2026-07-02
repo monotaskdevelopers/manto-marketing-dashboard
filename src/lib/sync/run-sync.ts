@@ -328,9 +328,33 @@ async function syncKlaviyoComprehensiveTables(params: {
       pruneStale: true,
     },
     {
+      table: "klaviyo_campaign_messages",
+      rows: params.data.campaignMessages as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,message_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_campaign_audiences",
+      rows: params.data.campaignAudiences as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,campaign_id,campaign_message_id,relationship_name,audience_type,audience_id",
+      pruneStale: true,
+    },
+    {
       table: "klaviyo_flows",
       rows: params.data.flows as unknown as Record<string, unknown>[],
       conflictTarget: "region_id,flow_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_flow_actions",
+      rows: params.data.flowActions as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,action_id",
+      pruneStale: true,
+    },
+    {
+      table: "klaviyo_flow_messages",
+      rows: params.data.flowMessages as unknown as Record<string, unknown>[],
+      conflictTarget: "region_id,message_id",
       pruneStale: true,
     },
   ];

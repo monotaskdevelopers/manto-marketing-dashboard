@@ -15,8 +15,18 @@ Klaviyo:
 - Klaviyo Query Flow Values endpoint: `https://developers.klaviyo.com/en/reference/query_flow_values`
 - Klaviyo Query Metric Aggregates endpoint: `https://developers.klaviyo.com/en/reference/query_metric_aggregates`
 - Klaviyo Get Metrics endpoint: `https://developers.klaviyo.com/en/reference/get_metrics`
+- Klaviyo Get Profiles endpoint: `https://developers.klaviyo.com/en/reference/get_profiles`
+- Klaviyo Get Lists endpoint: `https://developers.klaviyo.com/en/reference/get_lists`
+- Klaviyo Get List Profiles endpoint: `https://developers.klaviyo.com/en/reference/get_list_profiles`
+- Klaviyo Get Segments endpoint: `https://developers.klaviyo.com/en/reference/get_segments`
+- Klaviyo Get Segment Profiles endpoint: `https://developers.klaviyo.com/en/reference/get_segment_profiles`
+- Klaviyo Get Tags endpoint: `https://developers.klaviyo.com/en/reference/get_tags`
+- Klaviyo Get Events endpoint: `https://developers.klaviyo.com/en/reference/get_events`
 - Klaviyo Get Campaigns endpoint: `https://developers.klaviyo.com/en/reference/get_campaigns`
+- Klaviyo Get Messages For Campaign endpoint: `https://developers.klaviyo.com/en/reference/get_messages_for_campaign`
 - Klaviyo Get Flows endpoint: `https://developers.klaviyo.com/en/reference/get_flows`
+- Klaviyo Get Flow Actions For Flow endpoint: `https://developers.klaviyo.com/en/reference/get_flow_actions_for_flow`
+- Klaviyo Get Flow Messages For Flow Action endpoint: `https://developers.klaviyo.com/en/reference/get_flow_action_messages`
 - Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
 - Klaviyo API versioning policy: `https://developers.klaviyo.com/en/docs/api_versioning_and_deprecation_policy`
 
@@ -58,6 +68,20 @@ Next.js and Vercel:
 - The Metrics API can return metric `id`, `name`, and `integration`; use it to automatically detect the conversion metric ID after a Klaviyo key is saved.
 - Klaviyo's Metrics API requires `metrics:read`, can filter by integration, and returns up to 200 metrics per page.
 - A missing `metrics:read` scope should not block saving a Klaviyo key because campaign and flow sync only need their reporting scopes.
+- Klaviyo profiles, lists, segments, list profiles, segment profiles, tags, metrics, events, campaigns,
+  campaign messages, flows, flow actions, and flow messages are cursor-paginated JSON:API resources that
+  should be followed until `links.next` is absent.
+- Use the profile endpoints for recipient-level rows and list/segment profile endpoints for audience
+  membership rows; do not log profile PII while syncing those resources.
+- Use campaign metadata plus campaign-message resources so reports can filter by campaign status, channel,
+  subject, sender metadata, and message-level details.
+- Store campaign audience relationships from Klaviyo campaign/message relationship payloads with the
+  original relationship key preserved so future reports can distinguish direct, included, and excluded
+  audience targeting when Klaviyo exposes it.
+- Use flow metadata plus flow-action and flow-message resources so reports can join automation performance
+  to the flow action tree and message metadata.
+- Avoid sparse fieldsets for the comprehensive object sync unless an endpoint needs a special field because
+  `raw_payload` is the future-proof copy used when reporting needs fields not promoted into normalized columns.
 - New integrations should use the latest stable API revision and track deprecation timelines.
 
 Decision:
@@ -70,6 +94,16 @@ Decision:
   before writing to Supabase instead of expanding the MVP schema to message-level reporting.
 - Keep Klaviyo request and failure logs sanitized, but include endpoint path, revision, date window,
   statistics, group-by fields, conversion metric presence, HTTP status, and JSON:API error summaries.
+- Store comprehensive Klaviyo objects in normalized report-friendly tables plus `raw_payload` JSONB:
+  profiles, audiences, audience memberships, metrics, events, tags, tag relationships, campaigns, campaign
+  messages, campaign audience relationships, flows, flow actions, and flow messages.
+- Treat profiles, audiences, memberships, metrics, tags, tag relationships, campaigns, campaign messages,
+  campaign audiences, flows, flow actions, and flow messages as full-snapshot resources that can prune stale
+  rows after a successful full fetch; treat events as date-windowed history that should not be full-snapshot
+  pruned.
+- Keep the comprehensive sync count-oriented and non-PII in logs: stage starts, page counts, included-resource
+  counts, table upsert counts, conflict targets, and sanitized errors are allowed; customer identifiers,
+  event properties, and raw payloads are not.
 
 ### Shopify
 

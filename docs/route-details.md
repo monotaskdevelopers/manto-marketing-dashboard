@@ -17,10 +17,10 @@ or route handlers are added, removed, renamed, or materially changed.
 | `/shopify` | Shopify reporting placeholder | Preserves the protected Shopify overview route but renders no page body during the redesign reset. | High |
 | `/shopify/regional` | Shopify regional reporting placeholder | Reuses the blank `/regional` implementation under the nested Shopify navigation hierarchy. | High |
 | `/klaviyo` | Klaviyo reporting placeholder | Preserves the protected Klaviyo overview route but renders no page body during the redesign reset. | High |
-| `/klaviyo/campaigns` | Klaviyo campaign workspace | Renders the shared rebuilt Campaigns workspace under the nested Klaviyo navigation hierarchy. | High |
-| `/klaviyo/flows` | Klaviyo flow workspace | Renders the shared rebuilt Flows workspace under the nested Klaviyo navigation hierarchy. | High |
-| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with metrics, compact controls, and a campaign table scaffold. | High |
-| `/flows` | Flow reporting workspace | Renders the rebuilt Klaviyo-style flow workspace with compact controls and a flow table scaffold. | High |
+| `/klaviyo/campaigns` | Klaviyo campaign workspace | Renders the shared rebuilt Campaigns workspace with synced campaign reports and campaign metadata enrichment under the nested Klaviyo navigation hierarchy. | High |
+| `/klaviyo/flows` | Klaviyo flow workspace | Renders the shared rebuilt Flows workspace with synced flow reports and flow metadata enrichment under the nested Klaviyo navigation hierarchy. | High |
+| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with synced metrics, server-rendered search, campaign metadata enrichment, compact controls, and an empty state when no report rows match. | High |
+| `/flows` | Flow reporting workspace | Renders the rebuilt Klaviyo-style flow workspace with synced flow rows, server-rendered search, flow metadata enrichment, compact controls, and an empty state when no report rows match. | High |
 | `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
 
 ## Primary Sidebar Hierarchy
@@ -38,8 +38,8 @@ or route handlers are added, removed, renamed, or materially changed.
 
 | Route | Purpose | How it works | Importance |
 | --- | --- | --- | --- |
-| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; each active connected platform syncs independently, and Klaviyo reporting/comprehensive data can finish as separate success or partial segments. | Critical |
-| `/api/sync` | Manual sync | Authenticated user triggers a bounded sync job for Shopify-only, Klaviyo-only, or combined connections; Klaviyo events use the requested date window while full-snapshot Klaviyo objects sync all pages. | High |
+| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; each active connected platform syncs independently, and Klaviyo reporting/comprehensive profile, audience, campaign-message, flow-action, and flow-message data can finish as separate success or partial segments. | Critical |
+| `/api/sync` | Manual sync | Authenticated user triggers a bounded sync job for Shopify-only, Klaviyo-only, or combined connections; Klaviyo events use the requested date window while full-snapshot Klaviyo objects, campaign messages, campaign audiences, flow actions, and flow messages sync all pages. | High |
 | `/api/sync/status` | Sync status | Authenticated user reads latest sanitized sync metadata. | Medium |
 
 ## Route Rules
@@ -47,6 +47,6 @@ or route handlers are added, removed, renamed, or materially changed.
 - All dashboard routes require Supabase authentication.
 - API routes that mutate data must verify auth or cron secret server-side.
 - Date and region filters should remain URL query parameters when analytics pages are rebuilt.
-- Analytics pages are intentionally blank during the UI reset, except Settings and the rebuilt Campaigns and Flows workspaces.
+- Analytics pages are intentionally blank during the UI reset, except Settings and the rebuilt real-data Campaigns and Flows workspaces.
 - Future analytics table filters should stay inside the table header, server-rendered, and URL-driven so reports remain shareable without exposing platform credentials or adding client-only reporting state.
 - Future pages with multiple tables should use scoped query parameter names so one table's search, filter, and sort state does not overwrite another table's state.

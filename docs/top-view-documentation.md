@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns and Flows now have rebuilt Klaviyo-style UI scaffolds. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, and flow data for future reporting, sorting, filtering, and searching.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns and Flows now have rebuilt Klaviyo-style workspaces backed by synced report rows and safe Klaviyo object metadata. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, campaign-message, campaign-audience, flow, flow-action, and flow-message data for future reporting, sorting, filtering, and searching.
 
 ## Documentation Index
 
@@ -52,7 +52,8 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Sync frequency: Vercel Cron calls the sync route every hour.
 - Manual sync: authenticated internal users can trigger a fresh sync from Settings.
 - UI reset: authenticated report pages except Settings, Campaigns, and Flows are intentionally blank placeholders while the new experience is designed.
-- Klaviyo comprehensive sync: stores profiles, audiences, memberships, metrics, events, tags, campaigns, flows, and raw JSON payloads in authenticated Supabase tables.
+- Campaigns and Flows: rebuilt Klaviyo-style pages now render synced report rows, URL-driven search, metadata enrichment, and empty states instead of static sample data.
+- Klaviyo comprehensive sync: stores profiles, audiences, memberships, metrics, events, tags, campaigns, campaign messages, campaign audiences, flows, flow actions, flow messages, and raw JSON payloads in authenticated Supabase tables.
 - Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 
 ## Documentation Maintenance Rules

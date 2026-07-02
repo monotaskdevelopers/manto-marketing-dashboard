@@ -29,7 +29,8 @@ Klaviyo campaign and flow report endpoints have low steady limits. The sync must
 
 ### Klaviyo Comprehensive Data APIs
 
-Klaviyo profiles, lists, segments, memberships, tags, metrics, events, campaigns, and flows are all
+Klaviyo profiles, lists, segments, memberships, tags, metrics, events, campaigns, campaign messages, flows,
+flow actions, and flow messages are all
 cursor-paginated with different page sizes and rate limits. The sync must:
 
 - Use cursor pagination until Klaviyo stops returning `links.next`.
@@ -37,8 +38,8 @@ cursor-paginated with different page sizes and rate limits. The sync must:
 - Use date-window filters for events so manual sync range controls event volume.
 - Store normalized rows locally and use `raw_payload` JSONB for future report fields.
 - Treat 401/403 as missing-scope partial sync failures.
-- Treat 429 responses as retryable sync failures.
-- Avoid logging profile data, event properties, or raw API payloads.
+- Retry 429 responses with a small bounded backoff and then treat exhausted retries as retryable sync failures.
+- Avoid logging profile data, event properties, campaign/flow message payloads, or raw API payloads.
 - Consider moving comprehensive sync to a queue or background worker if account size causes cron/runtime timeouts.
 
 ### Vercel Cron
