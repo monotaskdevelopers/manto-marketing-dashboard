@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is an internal reporting dashboard that combines Shopify sales data and future Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns and Flows still read existing Klaviyo report tables when rows are present. Klaviyo account ingestion is currently paused so the next sync implementation can be rebuilt from a clean data contract.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns and Flows read local Klaviyo report and metadata tables when rows are present. Klaviyo campaign/flow ingestion has been reintroduced with a generic raw-resource layer for broader API coverage.
 
 ## Documentation Index
 
@@ -18,6 +18,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 | --- | --- | --- |
 | `/docs/product-requirements.md` | Product source of truth | PRD summary, MVP boundaries, user goals, page requirements, success criteria, and known open questions. |
 | `/docs/research-and-decisions.md` | Research record | Official-source research for Klaviyo, Shopify, Supabase, Next.js, and Vercel Cron, plus the architecture decisions that came from that research. |
+| `/docs/klaviyo-api-ingestion-plan.md` | Klaviyo API ingestion map | Official Klaviyo API surfaces reviewed, current sync coverage, skipped image handling, date-scopable reporting rules, and follow-up resource groups. |
 | `/docs/platform-connections.md` | Platform connection guide | Developer setup for Shopify, Klaviyo, Supabase secrets, region config, smoke tests, sync flow, troubleshooting, and token rotation. |
 | `/docs/initial-user-setup.md` | Initial user setup guide | One-time Supabase Auth bootstrap process, security rules, verification, and cleanup requirements. |
 | `/docs/implementation-plan.md` | Build plan | Layman explanation, technical sequence, implementation phases, data flow, and execution checklist. |
@@ -48,12 +49,12 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Framework: Next.js App Router.
 - Styling: Tailwind CSS.
 - Database and auth: Supabase.
-- Data sources: Shopify Admin GraphQL API now; Klaviyo account ingestion is paused pending a rebuild.
+- Data sources: Shopify Admin GraphQL API and Klaviyo JSON:API/Reporting API sync.
 - Sync frequency: Vercel Cron calls the sync route every hour.
-- Manual sync: authenticated internal users can trigger a fresh Shopify sync from Settings.
+- Manual sync: authenticated internal users can trigger a fresh Shopify and Klaviyo sync from Settings.
 - UI reset: authenticated report pages except Settings, Campaigns, and Flows are intentionally blank placeholders while the new experience is designed.
 - Campaigns and Flows: rebuilt Klaviyo-style pages render existing synced report rows, URL-driven search, metadata enrichment, and empty states instead of static sample data.
-- Klaviyo ingestion reset: encrypted Klaviyo keys can still be stored in Settings, but cron/manual sync no longer calls Klaviyo data endpoints or writes Klaviyo tables until the rebuild is implemented.
+- Klaviyo ingestion: encrypted Klaviyo keys stored in Settings are used by cron/manual sync to fetch campaigns, flows, lists, segments, metrics, tags, date-windowed profiles/events, Reporting API rows, and optional raw resources except images.
 - Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 
 ## Documentation Maintenance Rules

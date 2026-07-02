@@ -1,14 +1,15 @@
 /*
 File description:
-This file orchestrates platform sync runs. It currently writes Shopify reporting rows only, keeps Klaviyo
-account ingestion paused while that pipeline is rebuilt, records sync history, prevents overlapping jobs,
-and keeps logs sanitized for debugging.
+This file orchestrates platform sync runs. It writes Shopify reporting rows, writes rebuilt Klaviyo
+campaign/flow/reporting/resource rows, records sync history, prevents overlapping jobs, and keeps logs
+sanitized for debugging.
 */
 
 import "server-only";
 
 import { isDemoMode } from "@/lib/env";
 import { getRegionConfigs } from "@/lib/config/regions";
+import { fetchKlaviyoSyncRows } from "@/lib/integrations/klaviyo-sync";
 import { fetchShopifyDailyMetrics } from "@/lib/integrations/shopify";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { RegionIntegrationConfig, SyncRunResult, SyncStatus, SyncTrigger } from "@/lib/types";
@@ -137,6 +138,10 @@ function hasKlaviyoCredentials(region: RegionIntegrationConfig): region is Regio
   return Boolean(region.klaviyoPrivateKey);
 }
 
+function hasAnySyncCredentials(region: RegionIntegrationConfig) {
+  return hasShopifyCredentials(region) || hasKlaviyoCredentials(region);
+}
+
 async function findRunningSync() {
   const admin = getSupabaseAdmin();
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -227,7 +232,6 @@ async function syncRegion(params: {
   const syncedPlatforms: string[] = [];
   const platformErrors: string[] = [];
 
-  // Shopify remains the only active ingestion path until the Klaviyo rebuild defines the new data contract.
   if (hasShopifyCredentials(params.region)) {
     try {
       const shopifyRows = await fetchShopifyDailyMetrics({
@@ -256,9 +260,152 @@ async function syncRegion(params: {
   }
 
   if (hasKlaviyoCredentials(params.region)) {
-    console.info(
-      `[sync:klaviyo] Ingestion skipped for region ${params.region.slug} in run ${params.syncRunId}; Klaviyo sync is paused pending the rebuild.`,
-    );
+    try {
+      const klaviyoRows = await fetchKlaviyoSyncRows({
+        region: params.region,
+        regionId: params.regionId,
+        syncRunId: params.syncRunId,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
+
+      await upsertSyncRows({
+        table: "klaviyo_daily_metrics",
+        rows: klaviyoRows.dailyMetricRows,
+        conflictTarget: "region_id,metric_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_campaign_reports",
+        rows: klaviyoRows.campaignReportRows,
+        conflictTarget: "region_id,campaign_id,send_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_flow_reports",
+        rows: klaviyoRows.flowReportRows,
+        conflictTarget: "region_id,flow_id,metric_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_profiles",
+        rows: klaviyoRows.profileRows,
+        conflictTarget: "region_id,profile_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+        batchSize: 250,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_audiences",
+        rows: klaviyoRows.audienceRows,
+        conflictTarget: "region_id,audience_type,audience_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_audience_memberships",
+        rows: klaviyoRows.audienceMembershipRows,
+        conflictTarget: "region_id,audience_type,audience_id,profile_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_metrics",
+        rows: klaviyoRows.metricRows,
+        conflictTarget: "region_id,metric_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_events",
+        rows: klaviyoRows.eventRows,
+        conflictTarget: "region_id,event_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+        batchSize: 250,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_tags",
+        rows: klaviyoRows.tagRows,
+        conflictTarget: "region_id,tag_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_tag_relationships",
+        rows: klaviyoRows.tagRelationshipRows,
+        conflictTarget: "region_id,tag_id,target_type,target_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_campaigns",
+        rows: klaviyoRows.campaignRows,
+        conflictTarget: "region_id,campaign_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_campaign_messages",
+        rows: klaviyoRows.campaignMessageRows,
+        conflictTarget: "region_id,message_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_campaign_audiences",
+        rows: klaviyoRows.campaignAudienceRows,
+        conflictTarget: "region_id,campaign_id,campaign_message_id,relationship_name,audience_type,audience_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_flows",
+        rows: klaviyoRows.flowRows,
+        conflictTarget: "region_id,flow_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_flow_actions",
+        rows: klaviyoRows.flowActionRows,
+        conflictTarget: "region_id,action_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_flow_messages",
+        rows: klaviyoRows.flowMessageRows,
+        conflictTarget: "region_id,message_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_raw_resources",
+        rows: klaviyoRows.rawResourceRows,
+        conflictTarget: "region_id,resource_family,resource_type,resource_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+        batchSize: 200,
+      });
+
+      syncedPlatforms.push("Klaviyo");
+
+      if (klaviyoRows.warnings.length) {
+        platformErrors.push(`Klaviyo warnings: ${klaviyoRows.warnings.join("; ")}`);
+        console.warn(
+          `[sync:klaviyo] Region ${params.region.slug} completed with ${klaviyoRows.warnings.length} warning(s) in run ${params.syncRunId}. ${klaviyoRows.warnings.join("; ")}`,
+        );
+      }
+    } catch (error) {
+      const summary = sanitizeError(error);
+
+      platformErrors.push(`Klaviyo: ${summary}`);
+      console.warn(`[sync] Klaviyo failed for region ${params.region.slug} in run ${params.syncRunId}. ${summary}`);
+    }
   }
 
   if (!syncedPlatforms.length) {
@@ -286,18 +433,13 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
   }
 
   const allConfigs = await getRegionConfigs();
-  const configs = allConfigs.filter(hasShopifyCredentials);
-  const klaviyoOnlyRegionCount = allConfigs.filter(
-    (region) => !hasShopifyCredentials(region) && hasKlaviyoCredentials(region),
-  ).length;
+  const configs = allConfigs.filter(hasAnySyncCredentials);
 
   if (!configs.length) {
     return {
       syncRunId: "not-started",
       status: "failed",
-      message: klaviyoOnlyRegionCount
-        ? "No active regions have Shopify credentials available for the current sync. Klaviyo ingestion is paused while the new pipeline is rebuilt."
-        : "No active regions have encrypted Shopify credentials saved. Connect Shopify from Settings before running sync.",
+      message: "No active regions have encrypted Shopify or Klaviyo credentials saved. Connect a platform from Settings before running sync.",
     };
   }
 

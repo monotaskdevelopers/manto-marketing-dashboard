@@ -17,7 +17,7 @@ behavior.
 | Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings`, `/campaigns`, `/klaviyo/campaigns`, `/flows`, and `/klaviyo/flows` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
 | Campaigns visual-only controls | `/src/app/(dashboard)/campaigns/page.tsx` | Keeps Klaviyo-style controls for library, calendar, benchmarks, advanced filters, and row actions while the table itself reads synced campaign data. | Connect or remove visual-only controls before production analytics use. |
 | Flows visual-only controls | `/src/app/(dashboard)/flows/page.tsx` | Keeps Klaviyo-style controls for analytics, options, advanced filters, and row actions while the table itself reads synced flow data. | Connect or remove visual-only controls before production analytics use. |
-| Klaviyo ingestion pause | `src/lib/sync/run-sync.ts` and `src/lib/integrations/klaviyo.ts` | Removes the previous Klaviyo data ingestion path while the new sync contract is designed from the ground up. | Replace with the new production Klaviyo sync implementation after data scope, retention, rate limits, and schema are agreed. |
+| Klaviyo broad-resource backfill limits | `src/lib/integrations/klaviyo-sync.ts` | Keeps hourly/manual sync bounded while the first campaign/flow ingestion slice is active. | Replace very large historical Klaviyo backfills with explicit queued/operator jobs before production-scale use. |
 
 ## Verification Plan
 
@@ -36,11 +36,11 @@ behavior.
 - Verify the Klaviyo connect button opens the Klaviyo step-by-step modal.
 - Verify provider-specific save forms do not require the other provider's credential.
 - Verify timezone is selected from a dropdown in both provider modals.
-- Verify the Klaviyo modal explains that conversion metric ID detection is automatic when `metrics:read` is granted, but Klaviyo data ingestion is paused while the new sync plan is rebuilt.
+- Verify the Klaviyo modal explains that conversion metric ID detection is automatic when `metrics:read` is granted and that sync can ingest Klaviyo reporting resources when scopes allow it.
 - Verify disconnect nulls encrypted secret columns.
-- Verify sync ignores inactive regions and runs Shopify-ready regions only.
-- Verify combined Shopify/Klaviyo regions log a sanitized Klaviyo ingestion skip and still sync Shopify rows.
-- Verify Klaviyo-only regions return the clear paused-ingestion message instead of calling Klaviyo data endpoints.
+- Verify sync ignores inactive regions and runs Shopify-ready or Klaviyo-ready regions only.
+- Verify combined Shopify/Klaviyo regions can sync both platforms and report partial status if only one platform fails.
+- Verify Klaviyo-only regions can sync Klaviyo rows or return sanitized partial warnings for missing optional scopes.
 - Verify Klaviyo Settings metric lookup 400/429 logs include sanitized JSON:API error summaries without API keys, auth headers, raw payloads, or customer data.
 - Verify Supabase write logs include table, conflict target, row count, and sanitized PostgREST error details without secrets.
 
@@ -63,6 +63,9 @@ behavior.
 | Current typecheck after Klaviyo database upsert grain fix | Passed | `npm run typecheck`. |
 | Current typecheck after comprehensive Klaviyo sync expansion | Passed | `npm run typecheck`. |
 | Current lint after comprehensive Klaviyo sync expansion | Passed | `npm run lint`. |
+| Current static review after Klaviyo raw-resource ingestion rebuild | Completed | Inspected changed files and docs without running lint/typecheck because the current project instruction forbids build/test commands unless explicitly requested. |
+| Static review after recoverable Klaviyo endpoint failure fix | Completed | Confirmed top-level campaign/flow metadata fetches now run sequentially with reduced-request fallbacks and sanitized endpoint/status logging. Live sync was not rerun in this turn. |
+| Current static review after Klaviyo optional raw-resource hardening | Completed | Ran `git diff --check`, reviewed log statements, and searched for stale paused/pending Klaviyo wording. Did not run lint, typecheck, build, or live sync because the current project instruction forbids build/test commands unless explicitly requested. |
 | Local cron sync after Klaviyo database upsert grain fix | Passed | Triggered `GET /api/cron/hourly-sync` against the local dev server with the server-side cron secret. Response was `200` with sync run `4786456a-eacd-4bb6-bd46-2d92f37e3d3f` and status `success` for 1 region. |
 | `GET /api/cron/hourly-sync` without secret | Passed | Returned `401 Unauthorized` with a sanitized JSON error. |
 | `GET /api/sync/status` in local demo mode | Passed | Returned sanitized demo sync metadata because `DEMO_MODE=true` locally. |

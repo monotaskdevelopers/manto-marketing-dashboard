@@ -41,11 +41,12 @@ For the full platform connection guide, required scopes, smoke tests, and troubl
 - Apply `/supabase/migrations/S002-platform-connections.sql`.
 - Apply `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql`.
 - Apply `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql`.
+- Apply `/supabase/migrations/S005-klaviyo-raw-resource-ingestion.sql`.
 - Confirm RLS is enabled on all public reporting tables.
 - Confirm authenticated users can read report tables.
 - Confirm anonymous users cannot read report tables.
 - Confirm anonymous users cannot read comprehensive Klaviyo profile, audience, membership, metric, event, tag,
-  campaign, campaign-message, campaign-audience, flow, flow-action, or flow-message tables.
+  campaign, campaign-message, campaign-audience, flow, flow-action, flow-message, or raw-resource tables.
 - Confirm service role writes are only used from server routes.
 - Configure email/password auth or approved identity provider.
 - Restrict signup to internal users through Supabase settings or an invitation workflow.
@@ -70,11 +71,15 @@ For the full process, see `/docs/initial-user-setup.md`.
 
 ## Klaviyo Production Checks
 
-- Klaviyo data ingestion is currently paused while the new sync contract is rebuilt.
-- Create private keys with the narrowest read-only/custom scopes needed for the current Settings workflow.
-- Grant `metrics:read` only if automatic conversion metric detection is needed during Klaviyo connection.
-- Do not grant broader Klaviyo scopes for production until the rebuild defines exact resources, fields,
-  retention, rate limits, PII handling, and Supabase write paths.
+- Klaviyo campaign/flow ingestion is active in cron/manual sync.
+- Create private keys with read-only/custom scopes for campaigns, flows, metrics, lists, segments, tags,
+  profiles, events, templates, forms, coupons, catalogs, reviews, tracking settings, web feeds, webhooks,
+  custom objects, push tokens, and beta customer-agent metadata only when those datasets are needed.
+- Grant `metrics:read` so automatic conversion metric detection and Reporting API rows can work.
+- Keep images out of scope.
+- Do not enable full historical profile, subscription, custom-object record, customer-agent conversation
+  message/content, or data-privacy crawls until those backfills have explicit retention, rate-limit, and
+  privacy rules.
 - Confirm the API revision is supported.
 - Store private keys only through `/settings`, where they are encrypted before being saved to Supabase.
 
@@ -98,8 +103,8 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Verify a test region can be connected from `/settings`.
 - Verify disconnect removes encrypted Shopify/Klaviyo secrets from `platform_connections`.
 - Verify manual sync works for Shopify-ready test regions.
-- Verify Klaviyo-only test regions return the explicit paused-ingestion sync message.
-- Verify combined Shopify/Klaviyo test regions sync Shopify and log a sanitized Klaviyo ingestion skip.
+- Verify Klaviyo-only test regions sync Klaviyo metadata/report rows or return sanitized partial warnings for missing scopes.
+- Verify combined Shopify/Klaviyo test regions sync both platforms and report partial status only when one platform or optional resource fails.
 - Verify hourly cron sync works in production.
 - Verify no secrets appear in browser bundle, responses, or logs.
 - Verify no Klaviyo profile PII or raw event payloads appear in logs.

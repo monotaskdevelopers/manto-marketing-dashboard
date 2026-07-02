@@ -9,10 +9,10 @@ future schema changes are made.
 
 ## Database Purpose
 
-Supabase Postgres stores normalized reporting data fetched from Shopify and, after the rebuild, Klaviyo.
-The dashboard reads from local tables instead of calling external APIs on every page load. Klaviyo ingestion
-is currently paused, so existing Klaviyo tables are retained for historical data and future redesign rather
-than being written by the current sync runner.
+Supabase Postgres stores normalized reporting data fetched from Shopify and Klaviyo. The dashboard reads
+from local tables instead of calling external APIs on every page load. Klaviyo campaign/flow ingestion now
+writes promoted reporting tables plus a generic raw JSON:API resource table so broader Klaviyo endpoint
+coverage can expand without a migration for every resource family.
 
 ## Migration Files
 
@@ -20,8 +20,9 @@ than being written by the current sync runner.
 | --- | --- |
 | `/supabase/migrations/S001-initial-analytics-dashboard.sql` | Creates the MVP reporting schema, indexes, grants, and RLS policies. |
 | `/supabase/migrations/S002-platform-connections.sql` | Adds database-backed platform connection storage with encrypted secret columns and service-role-only access. |
-| `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds legacy/future Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage retained while ingestion is redesigned. |
-| `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql` | Adds legacy/future campaign messages, campaign audience relationships, flow actions, and flow messages for detailed Klaviyo reporting joins. |
+| `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage. |
+| `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql` | Adds campaign messages, campaign audience relationships, flow actions, and flow messages for detailed Klaviyo reporting joins. |
+| `/supabase/migrations/S005-klaviyo-raw-resource-ingestion.sql` | Adds promoted campaign/flow fields for channels, tags, audiences, A/B tests, and raw included payloads; adds `klaviyo_raw_resources` for broad Klaviyo JSON:API snapshots. |
 
 ## Tables
 
@@ -252,8 +253,10 @@ Important columns:
 - `region_id`.
 - `campaign_id`.
 - `name`, `status`, `channel`, `archived`.
+- `channel_list`, `tag_ids`, `audience_ids` for filterable promoted campaign relationships.
 - `klaviyo_created_at`, `klaviyo_updated_at`.
 - `scheduled_at`, `send_at`.
+- `a_b_test`, `send_strategy`, `tracking_options`, `included_payload`.
 - `search_text`.
 - `raw_payload`.
 
@@ -270,6 +273,7 @@ Important columns:
 - `name`, `channel`, `status`.
 - `subject`, `preview_text`, `from_email`, `from_label`, `reply_to_email`.
 - `klaviyo_created_at`, `klaviyo_updated_at`.
+- `tag_ids`, `content`, `render_options`, `included_payload`.
 - `search_text`.
 - `raw_payload`.
 
@@ -297,6 +301,7 @@ Important columns:
 - `region_id`.
 - `flow_id`.
 - `name`, `status`, `trigger_type`, `archived`.
+- `channel_list`, `tag_ids`, `trigger_filters`, `included_payload`.
 - `klaviyo_created_at`, `klaviyo_updated_at`.
 - `search_text`.
 - `raw_payload`.
@@ -313,6 +318,7 @@ Important columns:
 - `action_id`.
 - `action_type`, `status`, `name`.
 - `klaviyo_created_at`, `klaviyo_updated_at`.
+- `tag_ids`, `settings`, `included_payload`.
 - `search_text`.
 - `raw_payload`.
 
@@ -329,8 +335,27 @@ Important columns:
 - `name`, `channel`, `status`.
 - `subject`, `preview_text`, `from_email`, `from_label`, `reply_to_email`.
 - `klaviyo_created_at`, `klaviyo_updated_at`.
+- `tag_ids`, `content`, `render_options`, `included_payload`.
 - `search_text`.
 - `raw_payload`.
+
+### `klaviyo_raw_resources`
+
+Stores raw Klaviyo JSON:API resources across broad resource families such as accounts, catalogs, coupons,
+forms, reviews, templates, tracking settings, web feeds, webhooks, and future Klaviyo API categories. Images
+are intentionally excluded from ingestion.
+
+Important columns:
+
+- `region_id`.
+- `resource_family`: local grouping such as `campaigns`, `flows`, `catalog-items`, or `webhooks`.
+- `resource_type`: Klaviyo JSON:API `type`.
+- `resource_id`: Klaviyo JSON:API `id`, unique per family/type/region.
+- `endpoint_path`: API path used for the sync request.
+- `resource_name`.
+- `resource_created_at`, `resource_updated_at`, `occurred_at` for future date filters.
+- `attributes`, `relationships`, `included_payload`, `raw_payload`.
+- `last_seen_sync_run_id`, `synced_at`.
 
 ## Indexing Plan
 
@@ -351,6 +376,8 @@ Indexes target the dashboard's main filters:
 - Klaviyo campaign message searches by campaign, channel/status, raw payload JSONB, and `search_text`.
 - Klaviyo campaign audience joins by campaign, message, audience type, and audience ID.
 - Klaviyo flow action and flow message joins by flow/action/message, channel/status, raw payload JSONB, and `search_text`.
+- Klaviyo raw resource scans by region, resource family, endpoint, resource created/updated dates, occurred date,
+  name, JSONB attributes, relationships, and raw payload.
 
 ## RLS Plan
 
@@ -365,14 +392,14 @@ Indexes target the dashboard's main filters:
 - Authenticated users can select comprehensive Klaviyo data for internal reporting.
 - Anonymous users cannot read comprehensive Klaviyo data.
 - Future service-role sync code should be the only writer for comprehensive Klaviyo data after ingestion is rebuilt.
-- Campaign/flow detail tables follow the same authenticated-read and service-role-write posture.
+- Campaign/flow detail tables and `klaviyo_raw_resources` follow the same authenticated-read and
+  service-role-write posture.
 
 ## Data Retention
 
-For MVP, keep all synced reporting rows indefinitely. The previous comprehensive Klaviyo sync used
-`last_seen_sync_run_id` to prune full-snapshot rows after successful fetches, but current sync no longer
-writes or prunes Klaviyo tables. The rebuild should explicitly decide whether to keep, migrate, truncate, or
-replace these tables before reintroducing Klaviyo data writes.
+For MVP, keep all synced reporting rows indefinitely. The rebuilt Klaviyo sync writes snapshot-style
+metadata rows with `last_seen_sync_run_id` but does not prune stale rows yet. Date-windowed events and
+Reporting API rows should not be pruned by full-snapshot logic.
 
 If profile or event tables grow too large, add date partitioning for `klaviyo_events`, retention policy
 options by metric, and possibly dedicated profile search materialization.

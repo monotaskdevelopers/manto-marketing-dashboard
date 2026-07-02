@@ -13,8 +13,9 @@ as the application grows.
 
 Purpose:
 
-- Runs hourly sync for every active Shopify-ready region. Klaviyo data ingestion is paused while the sync
-  contract is rebuilt.
+- Runs hourly sync for every active region with Shopify or Klaviyo credentials. Shopify rows, Klaviyo
+  campaign/flow metadata, date-windowed Klaviyo report rows, and optional Klaviyo raw resources are written
+  server-side.
 
 Authentication:
 
@@ -47,8 +48,7 @@ Security notes:
 
 Purpose:
 
-- Allows an authenticated internal user to manually run the latest Shopify sync. Saved Klaviyo accounts are
-  not ingested by this route until the Klaviyo rebuild is implemented.
+- Allows an authenticated internal user to manually run the latest bounded Shopify and Klaviyo sync.
 
 Authentication:
 
@@ -160,19 +160,22 @@ Important safeguards:
 
 Purpose:
 
-- Currently disabled. The previous Reporting API and comprehensive Klaviyo account ingestion code has been
-  removed so the new data contract can be designed before any account data is synced.
+- Fetch Klaviyo account data into local Supabase tables for fast, date-scopable reporting and future
+  dashboard filters.
 
 Current behavior:
 
-- Manual and cron sync do not call Klaviyo Reporting API endpoints.
-- Manual and cron sync do not call Klaviyo profile, list, segment, tag, event, campaign, flow, message, or
-  action endpoints.
-- Manual and cron sync do not write Klaviyo tables.
+- Manual and cron sync call campaign, flow, metric, list, segment, tag, profile, event, and Reporting API
+  endpoints when a region has an encrypted Klaviyo private key.
+- Optional broader resource endpoints are attempted as raw snapshots when the connected key has the needed
+  read scope; missing scopes, unsupported optional endpoints, and transient optional endpoint failures are
+  logged as sanitized warnings and do not fail the whole region.
+- Images are not fetched.
 
 Important safeguards:
 
-- Rebuild must define resources, fields, retention, schema, write paths, rate limits, and PII handling before
-  reintroducing Klaviyo ingestion.
 - Any future Klaviyo ingestion must stay server-only and must never log profile PII, event properties, raw
   payloads, API keys, or auth headers.
+- Large profile, subscription, custom-object record, customer-agent conversation message/content, and
+  data-privacy jobs should be promoted into explicit backfill/operator flows instead of being hidden inside
+  hourly cron.

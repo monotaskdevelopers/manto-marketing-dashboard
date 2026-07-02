@@ -27,6 +27,9 @@ Klaviyo:
 - Klaviyo Get Flows endpoint: `https://developers.klaviyo.com/en/reference/get_flows`
 - Klaviyo Get Flow Actions For Flow endpoint: `https://developers.klaviyo.com/en/reference/get_flow_actions_for_flow`
 - Klaviyo Get Flow Messages For Flow Action endpoint: `https://developers.klaviyo.com/en/reference/get_flow_action_messages`
+- Klaviyo API overview/category index: `https://developers.klaviyo.com/en/reference/api_overview`
+- Klaviyo Catalogs, Coupons, Forms, Reviews, Templates, Tracking Settings, Web Feeds, and Webhooks API
+  reference pages linked from the official API category index.
 - Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
 - Klaviyo API versioning policy: `https://developers.klaviyo.com/en/docs/api_versioning_and_deprecation_policy`
 
@@ -97,6 +100,14 @@ Decision:
 - Store comprehensive Klaviyo objects in normalized report-friendly tables plus `raw_payload` JSONB:
   profiles, audiences, audience memberships, metrics, events, tags, tag relationships, campaigns, campaign
   messages, campaign audience relationships, flows, flow actions, and flow messages.
+- Store broad Klaviyo JSON:API resources in `klaviyo_raw_resources` so accounts, catalogs, coupons, forms,
+  reviews, templates, tracking settings, web feeds, webhooks, agent metadata, custom object data sources, push
+  tokens, translations, and future resource families can be synced without creating a new table for every
+  endpoint.
+- Keep beta/pre-release Klaviyo endpoints optional and non-fatal, and send the `.pre` API revision only for
+  endpoints that require it.
+- Exclude images from ingestion because the current reporting product does not need image binaries or image
+  metadata.
 - Treat profiles, audiences, memberships, metrics, tags, tag relationships, campaigns, campaign messages,
   campaign audiences, flows, flow actions, and flow messages as full-snapshot resources that can prune stale
   rows after a successful full fetch; treat events as date-windowed history that should not be full-snapshot

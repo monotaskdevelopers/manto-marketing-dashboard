@@ -22,6 +22,7 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Create bootstrap users only through trusted server-side admin tooling.
 - Store recipient-level Klaviyo profile data only in authenticated, RLS-protected Supabase tables.
 - Store campaign/flow message metadata and raw Klaviyo detail payloads only in authenticated, RLS-protected Supabase tables.
+- Store broad Klaviyo raw resource snapshots only in authenticated, RLS-protected Supabase tables.
 - Never log comprehensive Klaviyo profile, event, audience membership, campaign message, flow message, or raw payload data.
 
 ## Known Risks
@@ -100,7 +101,7 @@ Risk:
 
 - Full Klaviyo sync stores recipient emails, phone numbers, names, locations, subscriptions, properties,
   audience memberships, event properties, campaign message metadata, flow action metadata, flow message
-  metadata, and raw Klaviyo payloads so internal reporting can search and filter them.
+  metadata, broad raw resource snapshots, and raw Klaviyo payloads so internal reporting can search and filter them.
 - Any authenticated internal user can currently read these tables under the MVP access model.
 
 Mitigation:
@@ -112,6 +113,10 @@ Mitigation:
   membership details.
 - Keep campaign/flow message payloads server-side only; do not render raw payloads in the browser unless a
   future authenticated report explicitly needs those fields.
+- Keep push-token raw snapshots authenticated-only and do not render token values in the UI without a
+  separate privacy and retention review.
+- Do not add images or customer-agent conversation message/content sync without a separate privacy and
+  retention review.
 - Add RBAC or organization scoping before granting dashboard access to a broader audience.
 
 ### Currency Comparisons
@@ -160,6 +165,7 @@ Mitigation:
 - Review Supabase RLS policies with real project settings.
 - Confirm `platform_connections` remains service-role-only.
 - Confirm comprehensive Klaviyo tables are still authenticated-only and anonymous access is revoked.
+- Confirm `klaviyo_raw_resources` is still authenticated-only and anonymous access is revoked.
 - Confirm production users are allowed to access recipient-level Klaviyo data before enabling full sync.
 - Confirm `APP_ENCRYPTION_KEY` backup and rotation procedure before production.
 - Add deployment-level security headers if missing.

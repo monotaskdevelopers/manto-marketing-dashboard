@@ -125,8 +125,8 @@ const guideSteps: Record<Provider, GuideStep[]> = {
       description: "Use read-only or custom scopes so the dashboard cannot change Klaviyo data.",
       bullets: [
         "Grant metrics:read if you want automatic conversion metric detection during save.",
-        "Keep campaigns, flows, profiles, lists, segments, tags, and events scopes off until the new ingestion plan defines exactly what data will be synced.",
-        "The saved key is encrypted now, but Klaviyo account data ingestion is paused until the rebuild is implemented.",
+        "Grant read-only scopes for campaigns, flows, metrics, lists, segments, tags, profiles, and events when those resources should sync.",
+        "Add optional read scopes for catalogs, coupons, forms, reviews, templates, tracking settings, web feeds, and webhooks when those raw resources are needed.",
       ],
     },
     {
@@ -453,8 +453,8 @@ function ConnectionFormFields({
           </Field>
           <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-800">
             The conversion metric ID is detected automatically from Klaviyo after save when the private
-            key includes metrics:read. Klaviyo data ingestion is paused while the new sync plan is rebuilt,
-            so only grant broader read scopes after the new data contract is defined.
+            key includes metrics:read. Campaigns, flows, and related Klaviyo reporting resources sync after
+            saving when the private key includes the needed read scopes.
           </div>
           <Field label="Klaviyo private key" className="md:col-span-2">
             <TextControl

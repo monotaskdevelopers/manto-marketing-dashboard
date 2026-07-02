@@ -38,8 +38,8 @@ or route handlers are added, removed, renamed, or materially changed.
 
 | Route | Purpose | How it works | Importance |
 | --- | --- | --- | --- |
-| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; active Shopify-ready regions sync, while saved Klaviyo accounts are skipped because Klaviyo ingestion is paused for rebuild. | Critical |
-| `/api/sync` | Manual sync | Authenticated user triggers a bounded Shopify sync job; Klaviyo-only accounts receive a clear paused-ingestion message instead of calling Klaviyo data APIs. | High |
+| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; active Shopify-ready and Klaviyo-ready regions sync server-side. | Critical |
+| `/api/sync` | Manual sync | Authenticated user triggers a bounded Shopify/Klaviyo sync job. | High |
 | `/api/sync/status` | Sync status | Authenticated user reads latest sanitized sync metadata. | Medium |
 
 ## Route Rules
