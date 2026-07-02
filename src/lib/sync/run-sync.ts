@@ -1,21 +1,14 @@
 /*
 File description:
-This file orchestrates Shopify and Klaviyo sync runs. It records sync history, prevents overlapping jobs,
-fetches each configured region, writes normalized rows to Supabase, and keeps logs sanitized for debugging.
+This file orchestrates platform sync runs. It currently writes Shopify reporting rows only, keeps Klaviyo
+account ingestion paused while that pipeline is rebuilt, records sync history, prevents overlapping jobs,
+and keeps logs sanitized for debugging.
 */
 
 import "server-only";
 
 import { isDemoMode } from "@/lib/env";
 import { getRegionConfigs } from "@/lib/config/regions";
-import {
-  fetchKlaviyoComprehensiveData,
-  fetchKlaviyoCampaignReports,
-  fetchKlaviyoFlowReports,
-  type KlaviyoCampaignSyncRow,
-  type KlaviyoComprehensiveSyncData,
-  type KlaviyoFlowSyncRow,
-} from "@/lib/integrations/klaviyo";
 import { fetchShopifyDailyMetrics } from "@/lib/integrations/shopify";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { RegionIntegrationConfig, SyncRunResult, SyncStatus, SyncTrigger } from "@/lib/types";
@@ -131,34 +124,6 @@ async function upsertSyncRows(params: {
   );
 }
 
-async function deleteStaleSyncRows(params: {
-  table: string;
-  regionId: string;
-  regionSlug: string;
-  syncRunId: string;
-}) {
-  const admin = getSupabaseAdmin();
-
-  // Full Klaviyo object fetches should remove rows that no longer appear in the account.
-  const { error } = await admin
-    .from(params.table)
-    .delete()
-    .eq("region_id", params.regionId)
-    .neq("last_seen_sync_run_id", params.syncRunId);
-
-  if (error) {
-    const summary = summarizeDatabaseError(error);
-    console.warn(
-      `[sync:db] Failed to remove stale ${params.table} rows for region ${params.regionSlug} in run ${params.syncRunId}. ${summary}`,
-    );
-    throw new Error(`Unable to remove stale ${params.table} rows for region ${params.regionSlug}. ${summary}`);
-  }
-
-  console.info(
-    `[sync:db] Removed stale ${params.table} row(s) for region ${params.regionSlug} in run ${params.syncRunId}.`,
-  );
-}
-
 function hasShopifyCredentials(region: RegionIntegrationConfig): region is RegionIntegrationConfig & {
   shopifyShopDomain: string;
   shopifyAdminAccessToken: string;
@@ -170,219 +135,6 @@ function hasKlaviyoCredentials(region: RegionIntegrationConfig): region is Regio
   klaviyoPrivateKey: string;
 } {
   return Boolean(region.klaviyoPrivateKey);
-}
-
-function aggregateKlaviyoDaily(params: {
-  region: RegionIntegrationConfig;
-  campaigns: KlaviyoCampaignSyncRow[];
-  flows: KlaviyoFlowSyncRow[];
-}) {
-  const daily = new Map<
-    string,
-    {
-      metric_date: string;
-      campaign_revenue_amount: number;
-      flow_revenue_amount: number;
-      attributed_revenue_amount: number;
-      recipients_count: number;
-      opens_count: number;
-      clicks_count: number;
-      conversions_count: number;
-      unsubscribes_count: number;
-      bounces_count: number;
-      spam_complaints_count: number;
-      currency_code: string;
-    }
-  >();
-
-  function getDay(date: string) {
-    const existing = daily.get(date);
-
-    if (existing) {
-      return existing;
-    }
-
-    const next = {
-      metric_date: date,
-      campaign_revenue_amount: 0,
-      flow_revenue_amount: 0,
-      attributed_revenue_amount: 0,
-      recipients_count: 0,
-      opens_count: 0,
-      clicks_count: 0,
-      conversions_count: 0,
-      unsubscribes_count: 0,
-      bounces_count: 0,
-      spam_complaints_count: 0,
-      currency_code: params.region.currencyCode,
-    };
-
-    daily.set(date, next);
-    return next;
-  }
-
-  params.campaigns.forEach((row) => {
-    const day = getDay(row.send_date);
-    day.campaign_revenue_amount += row.revenue_amount;
-    day.attributed_revenue_amount += row.revenue_amount;
-    day.recipients_count += row.recipients_count;
-    day.opens_count += row.opens_count;
-    day.clicks_count += row.clicks_count;
-    day.conversions_count += row.conversions_count;
-  });
-
-  params.flows.forEach((row) => {
-    const day = getDay(row.metric_date);
-    day.flow_revenue_amount += row.revenue_amount;
-    day.attributed_revenue_amount += row.revenue_amount;
-    day.recipients_count += row.recipients_count;
-    day.opens_count += row.opens_count;
-    day.clicks_count += row.clicks_count;
-    day.conversions_count += row.conversions_count;
-  });
-
-  return Array.from(daily.values());
-}
-
-function attachKlaviyoSyncMetadata(params: {
-  rows: Record<string, unknown>[];
-  regionId: string;
-  syncRunId: string;
-  now: string;
-}) {
-  return params.rows.map((row) => ({
-    ...row,
-    region_id: params.regionId,
-    last_seen_sync_run_id: params.syncRunId,
-    synced_at: params.now,
-    updated_at: params.now,
-  }));
-}
-
-async function syncKlaviyoComprehensiveTables(params: {
-  data: KlaviyoComprehensiveSyncData;
-  regionId: string;
-  regionSlug: string;
-  syncRunId: string;
-  now: string;
-}) {
-  const common = {
-    regionId: params.regionId,
-    regionSlug: params.regionSlug,
-    syncRunId: params.syncRunId,
-    now: params.now,
-  };
-
-  const upserts: Array<{
-    table: string;
-    rows: Record<string, unknown>[];
-    conflictTarget: string;
-    pruneStale: boolean;
-  }> = [
-    {
-      table: "klaviyo_profiles",
-      rows: params.data.profiles as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,profile_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_audiences",
-      rows: params.data.audiences as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,audience_type,audience_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_audience_memberships",
-      rows: params.data.audienceMemberships as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,audience_type,audience_id,profile_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_metrics",
-      rows: params.data.metrics as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,metric_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_events",
-      rows: params.data.events as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,event_id",
-      pruneStale: false,
-    },
-    {
-      table: "klaviyo_tags",
-      rows: params.data.tags as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,tag_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_tag_relationships",
-      rows: params.data.tagRelationships as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,tag_id,target_type,target_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_campaigns",
-      rows: params.data.campaigns as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,campaign_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_campaign_messages",
-      rows: params.data.campaignMessages as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,message_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_campaign_audiences",
-      rows: params.data.campaignAudiences as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,campaign_id,campaign_message_id,relationship_name,audience_type,audience_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_flows",
-      rows: params.data.flows as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,flow_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_flow_actions",
-      rows: params.data.flowActions as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,action_id",
-      pruneStale: true,
-    },
-    {
-      table: "klaviyo_flow_messages",
-      rows: params.data.flowMessages as unknown as Record<string, unknown>[],
-      conflictTarget: "region_id,message_id",
-      pruneStale: true,
-    },
-  ];
-
-  for (const upsert of upserts) {
-    await upsertSyncRows({
-      table: upsert.table,
-      rows: attachKlaviyoSyncMetadata({
-        rows: upsert.rows,
-        regionId: common.regionId,
-        syncRunId: common.syncRunId,
-        now: common.now,
-      }),
-      conflictTarget: upsert.conflictTarget,
-      regionSlug: common.regionSlug,
-      syncRunId: common.syncRunId,
-      batchSize: 250,
-    });
-
-    if (upsert.pruneStale) {
-      await deleteStaleSyncRows({
-        table: upsert.table,
-        regionId: common.regionId,
-        regionSlug: common.regionSlug,
-        syncRunId: common.syncRunId,
-      });
-    }
-  }
 }
 
 async function findRunningSync() {
@@ -475,7 +227,7 @@ async function syncRegion(params: {
   const syncedPlatforms: string[] = [];
   const platformErrors: string[] = [];
 
-  // Each platform is optional; a Klaviyo-only connection should not fail because Shopify is absent.
+  // Shopify remains the only active ingestion path until the Klaviyo rebuild defines the new data contract.
   if (hasShopifyCredentials(params.region)) {
     try {
       const shopifyRows = await fetchShopifyDailyMetrics({
@@ -504,91 +256,9 @@ async function syncRegion(params: {
   }
 
   if (hasKlaviyoCredentials(params.region)) {
-    // Keep aggregate reporting separate from the larger object sync so one missing scope only causes partial success.
-    try {
-      const [campaignRows, flowRows] = await Promise.all([
-        fetchKlaviyoCampaignReports({
-          region: params.region,
-          startDate: params.startDate,
-          endDate: params.endDate,
-        }),
-        fetchKlaviyoFlowReports({
-          region: params.region,
-          startDate: params.startDate,
-          endDate: params.endDate,
-        }),
-      ]);
-
-      await upsertSyncRows({
-        table: "klaviyo_campaign_reports",
-        rows: campaignRows.map((row) => ({
-          ...row,
-          region_id: params.regionId,
-          updated_at: now,
-        })),
-        conflictTarget: "region_id,campaign_id,send_date",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-
-      await upsertSyncRows({
-        table: "klaviyo_flow_reports",
-        rows: flowRows.map((row) => ({
-          ...row,
-          region_id: params.regionId,
-          updated_at: now,
-        })),
-        conflictTarget: "region_id,flow_id,metric_date",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-
-      const dailyRows = aggregateKlaviyoDaily({
-        region: params.region,
-        campaigns: campaignRows,
-        flows: flowRows,
-      });
-
-      await upsertSyncRows({
-        table: "klaviyo_daily_metrics",
-        rows: dailyRows.map((row) => ({
-          ...row,
-          region_id: params.regionId,
-          updated_at: now,
-        })),
-        conflictTarget: "region_id,metric_date",
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-      });
-
-      syncedPlatforms.push("Klaviyo reporting");
-    } catch (error) {
-      platformErrors.push(`Klaviyo reporting: ${sanitizeError(error)}`);
-      console.warn(`[sync] Klaviyo reporting failed for region ${params.region.slug} in run ${params.syncRunId}.`);
-    }
-
-    try {
-      const comprehensiveData = await fetchKlaviyoComprehensiveData({
-        region: params.region,
-        startDate: params.startDate,
-        endDate: params.endDate,
-      });
-
-      await syncKlaviyoComprehensiveTables({
-        data: comprehensiveData,
-        regionId: params.regionId,
-        regionSlug: params.region.slug,
-        syncRunId: params.syncRunId,
-        now,
-      });
-
-      syncedPlatforms.push("Klaviyo comprehensive data");
-    } catch (error) {
-      platformErrors.push(`Klaviyo comprehensive data: ${sanitizeError(error)}`);
-      console.warn(
-        `[sync] Klaviyo comprehensive data failed for region ${params.region.slug} in run ${params.syncRunId}.`,
-      );
-    }
+    console.info(
+      `[sync:klaviyo] Ingestion skipped for region ${params.region.slug} in run ${params.syncRunId}; Klaviyo sync is paused pending the rebuild.`,
+    );
   }
 
   if (!syncedPlatforms.length) {
@@ -615,13 +285,19 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
     };
   }
 
-  const configs = await getRegionConfigs();
+  const allConfigs = await getRegionConfigs();
+  const configs = allConfigs.filter(hasShopifyCredentials);
+  const klaviyoOnlyRegionCount = allConfigs.filter(
+    (region) => !hasShopifyCredentials(region) && hasKlaviyoCredentials(region),
+  ).length;
 
   if (!configs.length) {
     return {
       syncRunId: "not-started",
       status: "failed",
-      message: "No active regions have encrypted Shopify or Klaviyo credentials saved. Reconnect a platform from Settings.",
+      message: klaviyoOnlyRegionCount
+        ? "No active regions have Shopify credentials available for the current sync. Klaviyo ingestion is paused while the new pipeline is rebuilt."
+        : "No active regions have encrypted Shopify credentials saved. Connect Shopify from Settings before running sync.",
     };
   }
 

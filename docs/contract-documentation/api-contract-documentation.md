@@ -13,7 +13,8 @@ as the application grows.
 
 Purpose:
 
-- Runs hourly sync for every active region with a connected Shopify and/or Klaviyo account.
+- Runs hourly sync for every active Shopify-ready region. Klaviyo data ingestion is paused while the sync
+  contract is rebuilt.
 
 Authentication:
 
@@ -46,7 +47,8 @@ Security notes:
 
 Purpose:
 
-- Allows an authenticated internal user to manually run the latest sync.
+- Allows an authenticated internal user to manually run the latest Shopify sync. Saved Klaviyo accounts are
+  not ingested by this route until the Klaviyo rebuild is implemented.
 
 Authentication:
 
@@ -135,11 +137,11 @@ Important safeguards:
 - Respect query-cost throttling.
 - Do not log order/customer details.
 
-### Klaviyo Reporting API
+### Klaviyo Metrics API
 
 Purpose:
 
-- Fetch campaign and flow performance for regions with a connected Klaviyo account.
+- Detect the preferred conversion metric ID when a Klaviyo private key is saved in Settings.
 
 Credential:
 
@@ -148,56 +150,29 @@ Credential:
 Important safeguards:
 
 - Use one API revision constant.
-- Respect low reporting endpoint rate limits.
-- Request `bounced`, not `bounces`, because Klaviyo's campaign and flow values endpoints reject invalid statistic names.
-- Include endpoint-required `group_by` fields for campaign and flow reports.
-- Parse report `groupings` and `statistics` objects before writing normalized rows.
-- Collapse Klaviyo message/channel result groups into campaign/date and flow/date rows before Supabase upsert,
-  matching `klaviyo_campaign_reports` and `klaviyo_flow_reports` unique constraints.
+- Call only `GET /api/metrics?fields[metric]=id,name,integration` during Settings save.
+- Bound lookup pagination so saving a connection cannot crawl the account.
+- Retry 429 responses with a small bounded backoff.
 - Log only sanitized request metadata and JSON:API error summaries for debugging 400, 401, 403, 429, and 5xx responses.
-- Normalize response fields before database writes.
 - Do not expose private keys to the browser.
 
-### Klaviyo Comprehensive Data APIs
+### Klaviyo Data Ingestion APIs
 
 Purpose:
 
-- Fetch the broader Klaviyo account dataset needed for recipient, audience, metric, event, tag, campaign,
-  and flow reporting/search/filtering.
+- Currently disabled. The previous Reporting API and comprehensive Klaviyo account ingestion code has been
+  removed so the new data contract can be designed before any account data is synced.
 
-Credential:
+Current behavior:
 
-- Server-only Klaviyo private API key.
-
-Endpoints used:
-
-- `GET /api/profiles`
-- `GET /api/lists`
-- `GET /api/lists/{id}/profiles`
-- `GET /api/segments`
-- `GET /api/segments/{id}/profiles`
-- `GET /api/tags`
-- `GET /api/metrics`
-- `GET /api/events`
-- `GET /api/campaigns`
-- `GET /api/campaigns/{id}/campaign-messages`
-- `GET /api/flows`
-- `GET /api/flows/{id}/flow-actions`
-- `GET /api/flow-actions/{id}/flow-messages`
+- Manual and cron sync do not call Klaviyo Reporting API endpoints.
+- Manual and cron sync do not call Klaviyo profile, list, segment, tag, event, campaign, flow, message, or
+  action endpoints.
+- Manual and cron sync do not write Klaviyo tables.
 
 Important safeguards:
 
-- Require read-only Klaviyo scopes for profiles, lists, segments, tags, metrics, events, campaigns, and flows;
-  campaign messages use `campaigns:read`, and flow actions/messages use `flows:read`.
-- Cursor-paginate until `links.next` is absent.
-- Filter events by the current sync date window.
-- Upsert comprehensive rows in batches.
-- Store full source objects in `raw_payload` JSONB while exposing indexed normalized columns for report queries.
-- Mark full-snapshot rows with `last_seen_sync_run_id` and prune stale rows after successful full fetches.
-- Do not prune `klaviyo_events` as a full snapshot because it is date-windowed event history.
-- Upsert campaign messages, campaign audience relationships, flow actions, and flow messages with deterministic
-  conflict targets so repeated manual/cron syncs update existing rows instead of duplicating them.
-- Preserve original campaign audience relationship names because Klaviyo can expose list, segment, included,
-  excluded, or generic audience links depending on channel and API revision.
-- Retry Klaviyo GET requests on 429 up to a small bounded limit, respecting `Retry-After` when Klaviyo sends it.
-- Log endpoint counts only; never log profile PII, event properties, or raw JSON payloads.
+- Rebuild must define resources, fields, retention, schema, write paths, rate limits, and PII handling before
+  reintroducing Klaviyo ingestion.
+- Any future Klaviyo ingestion must stay server-only and must never log profile PII, event properties, raw
+  payloads, API keys, or auth headers.

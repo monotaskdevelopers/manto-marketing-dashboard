@@ -17,6 +17,7 @@ behavior.
 | Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings`, `/campaigns`, `/klaviyo/campaigns`, `/flows`, and `/klaviyo/flows` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
 | Campaigns visual-only controls | `/src/app/(dashboard)/campaigns/page.tsx` | Keeps Klaviyo-style controls for library, calendar, benchmarks, advanced filters, and row actions while the table itself reads synced campaign data. | Connect or remove visual-only controls before production analytics use. |
 | Flows visual-only controls | `/src/app/(dashboard)/flows/page.tsx` | Keeps Klaviyo-style controls for analytics, options, advanced filters, and row actions while the table itself reads synced flow data. | Connect or remove visual-only controls before production analytics use. |
+| Klaviyo ingestion pause | `src/lib/sync/run-sync.ts` and `src/lib/integrations/klaviyo.ts` | Removes the previous Klaviyo data ingestion path while the new sync contract is designed from the ground up. | Replace with the new production Klaviyo sync implementation after data scope, retention, rate limits, and schema are agreed. |
 
 ## Verification Plan
 
@@ -35,21 +36,12 @@ behavior.
 - Verify the Klaviyo connect button opens the Klaviyo step-by-step modal.
 - Verify provider-specific save forms do not require the other provider's credential.
 - Verify timezone is selected from a dropdown in both provider modals.
-- Verify the Klaviyo modal explains that conversion metric ID detection is automatic when `metrics:read` is granted, but key storage still works for campaign and flow sync if metric lookup is blocked.
+- Verify the Klaviyo modal explains that conversion metric ID detection is automatic when `metrics:read` is granted, but Klaviyo data ingestion is paused while the new sync plan is rebuilt.
 - Verify disconnect nulls encrypted secret columns.
-- Verify sync ignores inactive regions and still runs Shopify-only, Klaviyo-only, and combined connected regions.
-- Verify Klaviyo sync requests use `bounced`, endpoint-required `group_by` fields, and a detected `conversion_metric_id`.
-- Verify Klaviyo message/channel result groups are collapsed into unique campaign/date and flow/date rows before database upsert.
-- Verify comprehensive Klaviyo sync fetches profiles, lists, segments, audience memberships, tags, metrics,
-  events, campaigns, campaign messages, campaign audience relationships, flows, flow actions, and flow
-  messages when the private key has all read scopes.
-- Verify comprehensive Klaviyo sync marks the run partial, without breaking aggregate campaign/flow reports,
-  when a comprehensive-only scope such as `tags:read` or `events:read` is missing.
-- Verify comprehensive Klaviyo tables are searchable/filterable by indexed date, audience, profile, metric,
-  campaign message, flow action, flow message, status, and `search_text` columns.
-- Verify Klaviyo 400/429 logs include sanitized JSON:API error summaries without API keys, auth headers, raw payloads, or customer data.
-- Verify comprehensive Klaviyo logs never include profile emails, phone numbers, names, audience membership
-  details, campaign/flow message payloads, event properties, or raw payloads.
+- Verify sync ignores inactive regions and runs Shopify-ready regions only.
+- Verify combined Shopify/Klaviyo regions log a sanitized Klaviyo ingestion skip and still sync Shopify rows.
+- Verify Klaviyo-only regions return the clear paused-ingestion message instead of calling Klaviyo data endpoints.
+- Verify Klaviyo Settings metric lookup 400/429 logs include sanitized JSON:API error summaries without API keys, auth headers, raw payloads, or customer data.
 - Verify Supabase write logs include table, conflict target, row count, and sanitized PostgREST error details without secrets.
 
 ## Verification Completed

@@ -18,29 +18,23 @@ Shopify Admin GraphQL uses calculated query cost limits. The sync must:
 - Back off when Shopify reports throttling.
 - Avoid repeated manual syncs over large date ranges.
 
-### Klaviyo Reporting API
+### Klaviyo Metrics API
 
-Klaviyo campaign and flow report endpoints have low steady limits. The sync must:
+Klaviyo metric lookup can run when a Settings save includes a new Klaviyo private key with `metrics:read`.
+The helper must:
 
-- Run one bounded reporting sync per region.
-- Avoid UI-triggered direct Klaviyo calls.
-- Store normalized results locally.
-- Treat 429 responses as retryable sync failures, not silent success.
+- Call only the Metrics API fields needed for conversion metric detection.
+- Keep lookup pagination bounded so saving a connection stays responsive.
+- Retry 429 responses with a small bounded backoff.
+- Avoid calling Klaviyo on every keystroke or page load.
 
-### Klaviyo Comprehensive Data APIs
+### Klaviyo Data Ingestion APIs
 
-Klaviyo profiles, lists, segments, memberships, tags, metrics, events, campaigns, campaign messages, flows,
-flow actions, and flow messages are all
-cursor-paginated with different page sizes and rate limits. The sync must:
+Klaviyo account data ingestion is paused. Manual and cron sync currently must not call Klaviyo Reporting API,
+profile, list, segment, membership, tag, event, campaign, flow, message, or action endpoints.
 
-- Use cursor pagination until Klaviyo stops returning `links.next`.
-- Keep profile and membership requests server-side only.
-- Use date-window filters for events so manual sync range controls event volume.
-- Store normalized rows locally and use `raw_payload` JSONB for future report fields.
-- Treat 401/403 as missing-scope partial sync failures.
-- Retry 429 responses with a small bounded backoff and then treat exhausted retries as retryable sync failures.
-- Avoid logging profile data, event properties, campaign/flow message payloads, or raw API payloads.
-- Consider moving comprehensive sync to a queue or background worker if account size causes cron/runtime timeouts.
+The rebuild must define endpoint-specific rate budgets, queueing/backoff, page sizes, retention, and timeout
+behavior before reintroducing those calls.
 
 ### Vercel Cron
 
@@ -56,8 +50,7 @@ Recommended protection:
 - Cap date range to 90 days.
 - Block a new manual sync if another sync is already running.
 - In production, add a per-user or global cooldown such as one manual sync every 5 minutes.
-- Consider separate cooldowns or background jobs for comprehensive Klaviyo sync if very large accounts make
-  manual refreshes slow.
+- Consider separate cooldowns or background jobs before reintroducing Klaviyo ingestion for large accounts.
 
 ### `GET /api/cron/hourly-sync`
 

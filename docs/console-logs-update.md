@@ -10,16 +10,16 @@ must avoid PII and secrets, and they should be reviewed before production to dec
 
 | Location | Log purpose | Contains PII? | Production action |
 | --- | --- | --- | --- |
-| `src/lib/sync/run-sync.ts` | Logs sync start, per-region platform progress, per-table batched Supabase upsert attempts, zero-row skips, stale-row pruning, upsert success, sanitized database errors, and sync completion status. | No | Keep only if production observability is needed; otherwise replace with structured logger. |
+| `src/lib/sync/run-sync.ts` | Logs sync start, Shopify per-region progress, per-table batched Supabase upsert attempts, zero-row skips, upsert success, Klaviyo ingestion skip notices, sanitized database errors, and sync completion status. | No | Keep only if production observability is needed; otherwise replace with structured logger. |
 | `src/lib/integrations/shopify.ts` | Logs sanitized Shopify sync progress and retry context. | No | Keep warnings/errors only. |
-| `src/lib/integrations/klaviyo.ts` | Logs sanitized Klaviyo sync progress, Reporting API request metadata, comprehensive stage starts, collection page/item/included-resource counts, campaign-message and flow-action/message normalization counts, bounded 429 retry attempts, reporting failures, JSON:API error summaries, and Settings metric auto-detection outcomes by region slug. | No | Keep warnings/errors only, and move successful metric detection/request/count logs to structured observability before production if noisy. |
+| `src/lib/integrations/klaviyo.ts` | Logs Settings-only Klaviyo metric lookup outcomes, bounded 429 retry attempts, authorization failures, and sanitized JSON:API error summaries by region slug. | No | Keep warnings/errors only, and move successful metric detection logs to structured observability before production if noisy. |
 | `src/lib/settings/platform-connections.ts` | Logs sanitized connect, disconnect, deactivate, metric lookup skip, and syncable connection count events by region slug or count. | No | Keep if operational audit visibility is needed; otherwise move to structured audit table. |
 
 ## Rules
 
 - Never log API keys, access tokens, auth headers, customer emails, customer names, phone numbers, raw Shopify orders, or raw Klaviyo payloads.
-- Keep logs focused on sync run ID, region slug, provider, endpoint path, API revision, date window, statistic names, group-by fields, table names, conflict targets, row counts, page counts, included-resource counts, retry attempts, status, and sanitized error messages.
+- Keep logs focused on sync run ID, region slug, provider, endpoint path, API revision, table names, conflict targets, row counts, retry attempts, status, and sanitized error messages.
 - Klaviyo JSON:API error logs may include status, code, title, detail, source pointer, and source parameter only after secret redaction.
 - Supabase write error logs may include PostgREST error code, message, details, and hint only after secret redaction.
-- Comprehensive Klaviyo logs must never include profile emails, phone numbers, names, event properties, audience membership payloads, message payloads, flow message payloads, or raw JSON:API payloads.
+- Klaviyo ingestion is paused; if rebuilt, logs must never include profile emails, phone numbers, names, event properties, audience membership payloads, message payloads, flow message payloads, or raw JSON:API payloads.
 - Review this file before production launch.

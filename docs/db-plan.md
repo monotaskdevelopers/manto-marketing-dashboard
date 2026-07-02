@@ -9,7 +9,10 @@ future schema changes are made.
 
 ## Database Purpose
 
-Supabase Postgres stores normalized reporting data fetched from Shopify and Klaviyo. The dashboard reads from these local tables instead of calling external APIs on every page load.
+Supabase Postgres stores normalized reporting data fetched from Shopify and, after the rebuild, Klaviyo.
+The dashboard reads from local tables instead of calling external APIs on every page load. Klaviyo ingestion
+is currently paused, so existing Klaviyo tables are retained for historical data and future redesign rather
+than being written by the current sync runner.
 
 ## Migration Files
 
@@ -17,8 +20,8 @@ Supabase Postgres stores normalized reporting data fetched from Shopify and Klav
 | --- | --- |
 | `/supabase/migrations/S001-initial-analytics-dashboard.sql` | Creates the MVP reporting schema, indexes, grants, and RLS policies. |
 | `/supabase/migrations/S002-platform-connections.sql` | Adds database-backed platform connection storage with encrypted secret columns and service-role-only access. |
-| `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds comprehensive Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage for reporting/search/filter use. |
-| `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql` | Adds campaign messages, campaign audience relationships, flow actions, and flow messages for detailed Klaviyo reporting joins. |
+| `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds legacy/future Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage retained while ingestion is redesigned. |
+| `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql` | Adds legacy/future campaign messages, campaign audience relationships, flow actions, and flow messages for detailed Klaviyo reporting joins. |
 
 ## Tables
 
@@ -361,16 +364,15 @@ Indexes target the dashboard's main filters:
 - Enable RLS on all comprehensive Klaviyo tables.
 - Authenticated users can select comprehensive Klaviyo data for internal reporting.
 - Anonymous users cannot read comprehensive Klaviyo data.
-- Service-role sync code is the only writer for comprehensive Klaviyo data.
+- Future service-role sync code should be the only writer for comprehensive Klaviyo data after ingestion is rebuilt.
 - Campaign/flow detail tables follow the same authenticated-read and service-role-write posture.
 
 ## Data Retention
 
-For MVP, keep all synced reporting rows indefinitely. Comprehensive Klaviyo full-snapshot tables remove stale
-rows after a successful full fetch by comparing `last_seen_sync_run_id`. `klaviyo_events` keeps date-windowed
-events indefinitely because events are append/update records and older dashboard ranges may need history.
-Campaign messages, campaign audiences, flow actions, and flow messages are also full-snapshot tables and are
-pruned by `last_seen_sync_run_id` after a successful comprehensive Klaviyo fetch.
+For MVP, keep all synced reporting rows indefinitely. The previous comprehensive Klaviyo sync used
+`last_seen_sync_run_id` to prune full-snapshot rows after successful fetches, but current sync no longer
+writes or prunes Klaviyo tables. The rebuild should explicitly decide whether to keep, migrate, truncate, or
+replace these tables before reintroducing Klaviyo data writes.
 
 If profile or event tables grow too large, add date partitioning for `klaviyo_events`, retention policy
 options by metric, and possibly dedicated profile search materialization.

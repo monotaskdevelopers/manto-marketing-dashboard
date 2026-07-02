@@ -70,16 +70,11 @@ For the full process, see `/docs/initial-user-setup.md`.
 
 ## Klaviyo Production Checks
 
-- Create private keys with read-only or custom reporting scopes.
-- Grant `campaigns:read` and `flows:read` for campaign and flow reports.
-- Grant `profiles:read`, `lists:read`, `segments:read`, `tags:read`, `metrics:read`, and `events:read` for comprehensive recipient, audience, tag, metric, and event sync.
-- Keep `campaigns:read` and `flows:read` enabled for campaign messages, campaign audience relationships,
-  flow actions, and flow messages in addition to aggregate report pulls.
-- Keep `metrics:read` enabled so the app can auto-detect the conversion metric ID during Klaviyo connection and sync the metric library.
-- Confirm campaign and flow report endpoints return expected fields for each account.
-- Confirm comprehensive Klaviyo tables populate after manual sync for the largest account.
-- Confirm profile/event/message/action sync volume does not exceed the production function runtime; move this
-  segment to a queue if it does.
+- Klaviyo data ingestion is currently paused while the new sync contract is rebuilt.
+- Create private keys with the narrowest read-only/custom scopes needed for the current Settings workflow.
+- Grant `metrics:read` only if automatic conversion metric detection is needed during Klaviyo connection.
+- Do not grant broader Klaviyo scopes for production until the rebuild defines exact resources, fields,
+  retention, rate limits, PII handling, and Supabase write paths.
 - Confirm the API revision is supported.
 - Store private keys only through `/settings`, where they are encrypted before being saved to Supabase.
 
@@ -102,8 +97,9 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Verify `/settings` loads for authenticated users.
 - Verify a test region can be connected from `/settings`.
 - Verify disconnect removes encrypted Shopify/Klaviyo secrets from `platform_connections`.
-- Verify manual sync works for Shopify-only, Klaviyo-only, and combined test regions.
-- Verify Klaviyo comprehensive data sync shows `success` or expected `partial` status when a scope is intentionally missing.
+- Verify manual sync works for Shopify-ready test regions.
+- Verify Klaviyo-only test regions return the explicit paused-ingestion sync message.
+- Verify combined Shopify/Klaviyo test regions sync Shopify and log a sanitized Klaviyo ingestion skip.
 - Verify hourly cron sync works in production.
 - Verify no secrets appear in browser bundle, responses, or logs.
 - Verify no Klaviyo profile PII or raw event payloads appear in logs.

@@ -121,13 +121,12 @@ const guideSteps: Record<Provider, GuideStep[]> = {
       ],
     },
     {
-      title: "Choose safe reporting scopes",
+      title: "Choose safe connection scopes",
       description: "Use read-only or custom scopes so the dashboard cannot change Klaviyo data.",
       bullets: [
-        "Grant campaigns:read.",
-        "Grant flows:read.",
-        "Grant profiles:read, lists:read, segments:read, tags:read, metrics:read, and events:read for full synced reporting data.",
-        "If a comprehensive scope is missing, the key can still be saved but sync will mark that Klaviyo segment as partial.",
+        "Grant metrics:read if you want automatic conversion metric detection during save.",
+        "Keep campaigns, flows, profiles, lists, segments, tags, and events scopes off until the new ingestion plan defines exactly what data will be synced.",
+        "The saved key is encrypted now, but Klaviyo account data ingestion is paused until the rebuild is implemented.",
       ],
     },
     {
@@ -137,7 +136,7 @@ const guideSteps: Record<Provider, GuideStep[]> = {
         "No metric ID needs to be pasted manually.",
         "The server calls Klaviyo's Metrics API with fields[metric]=id,name,integration.",
         "It prefers revenue metrics like Placed Order or Ordered Product.",
-        "If Klaviyo denies the lookup, sync still uses the saved key and revenue metric detection can be retried later.",
+        "If Klaviyo denies the lookup, the key can still be saved and detection can be retried later.",
       ],
     },
     {
@@ -454,8 +453,8 @@ function ConnectionFormFields({
           </Field>
           <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-800">
             The conversion metric ID is detected automatically from Klaviyo after save when the private
-            key includes metrics:read. For full recipient, audience, tag, metric, and event sync, include all
-            read-only Klaviyo reporting scopes listed in the setup guide.
+            key includes metrics:read. Klaviyo data ingestion is paused while the new sync plan is rebuilt,
+            so only grant broader read scopes after the new data contract is defined.
           </div>
           <Field label="Klaviyo private key" className="md:col-span-2">
             <TextControl
