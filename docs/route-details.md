@@ -1,0 +1,33 @@
+<!--
+File description:
+This file documents all user-facing and API routes in the dashboard. It should be updated whenever pages
+or route handlers are added, removed, renamed, or materially changed.
+-->
+
+# Route Details
+
+## User-Facing Routes
+
+| Route | Purpose | How it works | Importance |
+| --- | --- | --- | --- |
+| `/login` | Internal user sign-in | Uses Supabase email/password authentication. | Critical |
+| `/` | Overview dashboard | Shows high-level Shopify and Klaviyo metrics using URL filters. | Critical |
+| `/regional` | Regional comparison | Compares revenue, orders, AOV, and Klaviyo contribution by region. | High |
+| `/shopify` | Shopify reporting | Shows ecommerce revenue, orders, AOV, customers, and trend data. | High |
+| `/klaviyo` | Klaviyo reporting | Shows attributed revenue, engagement, campaign and flow rollups. | High |
+| `/campaigns` | Campaign reporting | Lists campaign-level performance across regions and dates. | High |
+| `/flows` | Flow reporting | Lists automated flow performance across regions and dates. | High |
+
+## API Routes
+
+| Route | Purpose | How it works | Importance |
+| --- | --- | --- | --- |
+| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`. | Critical |
+| `/api/sync` | Manual sync | Authenticated user triggers a bounded sync job. | High |
+| `/api/sync/status` | Sync status | Authenticated user reads latest sanitized sync metadata. | Medium |
+
+## Route Rules
+
+- All dashboard routes require Supabase authentication.
+- API routes that mutate data must verify auth or cron secret server-side.
+- Date and region filters should remain URL query parameters for shareable internal reporting links.

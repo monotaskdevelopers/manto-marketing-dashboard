@@ -1,0 +1,26 @@
+# File description:
+# This file keeps generated dependencies, build output, local environment files, and OS/editor noise out of git.
+# It protects secrets such as .env.local while allowing source, docs, and migration files to be tracked.
+
+node_modules
+.next
+out
+dist
+coverage
+tsconfig.tsbuildinfo
+
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+supabase/.branches
+supabase/.temp
