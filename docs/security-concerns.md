@@ -165,9 +165,10 @@ Mitigation:
 - Rotate platform tokens before production if they were used in local testing.
 - Review Supabase RLS policies with real project settings.
 - Confirm `platform_connections` remains service-role-only.
-- Confirm comprehensive Klaviyo tables are still authenticated-only and anonymous access is revoked.
+- Confirm Klaviyo tables are still authenticated-only and anonymous access is revoked.
 - Confirm `klaviyo_raw_resources` is still authenticated-only and anonymous access is revoked.
-- Confirm production users are allowed to access recipient-level Klaviyo data before enabling full sync.
+- Confirm production users are allowed to access recipient-level Klaviyo data before any future profile,
+  event, or audience-membership sync is enabled.
 - Confirm `APP_ENCRYPTION_KEY` backup and rotation procedure before production.
 - Add deployment-level security headers if missing.
 - Add audit logging for manual sync trigger user IDs if leadership needs traceability.

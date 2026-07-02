@@ -27,6 +27,18 @@ type KlaviyoCollection = {
   pageCount: number;
 };
 
+type CampaignTags = {
+  tagIds: string[];
+  tagResources: KlaviyoResourceObject[];
+  endpointPaths: string[];
+};
+
+type CampaignAudiences = {
+  audienceIds: string[];
+  audienceResources: KlaviyoResourceObject[];
+  endpointPaths: string[];
+};
+
 type KlaviyoSyncRows = {
   tagRows: Record<string, unknown>[];
   tagRelationshipRows: Record<string, unknown>[];
@@ -461,6 +473,12 @@ function relationshipIds(resource: KlaviyoResourceObject, typeMatchers: string[]
   );
 }
 
+function hasRelationship(resource: KlaviyoResourceObject, relationshipNames: string[]) {
+  const relationships = resource.relationships || {};
+
+  return relationshipNames.some((relationshipName) => Object.prototype.hasOwnProperty.call(relationships, relationshipName));
+}
+
 function inferCampaignChannels(campaign: KlaviyoResourceObject) {
   const attributes = campaign.attributes || {};
   const relationshipText = relationshipItems(campaign)
@@ -663,7 +681,10 @@ async function fetchCampaigns(rows: KlaviyoSyncRows, client: KlaviyoClientParams
           ...client,
           path: "campaigns",
           label: channelFetch.label,
-          query: { filter: channelFetch.filter },
+          query: {
+            filter: channelFetch.filter,
+            include: "tags",
+          },
           pageSize: campaignPageSize,
         },
         [400, 403, 404],
@@ -672,9 +693,12 @@ async function fetchCampaigns(rows: KlaviyoSyncRows, client: KlaviyoClientParams
   }
 
   const campaigns = dedupeResources(collections.flatMap((collection) => collection.data)).filter((campaign) => campaign.id);
+  const includedTags = dedupeResources(collections.flatMap((collection) => collection.included)).filter((resource) =>
+    (resource.type || "").toLowerCase().includes("tag"),
+  );
 
   if (campaigns.length) {
-    return { campaigns, endpointPath: "campaigns" };
+    return { campaigns, includedTags, endpointPath: "campaigns" };
   }
 
   console.warn(
@@ -684,16 +708,59 @@ async function fetchCampaigns(rows: KlaviyoSyncRows, client: KlaviyoClientParams
     ...client,
     path: "campaigns",
     label: "All campaigns",
+    query: {
+      include: "tags",
+    },
     pageSize: campaignPageSize,
+  }).catch(async (error) => {
+    if (error instanceof KlaviyoEndpointError && error.status === 400) {
+      rows.warnings.push(`All campaigns with included tags failed; retrying without included tags. ${sanitizeLogText(error.message)}`);
+      console.warn(
+        `[sync:klaviyo] All campaigns with included tags failed for region ${client.regionSlug}; retrying without included tags.`,
+      );
+
+      return fetchKlaviyoCollection({
+        ...client,
+        path: "campaigns",
+        label: "All campaigns without included tags",
+        pageSize: campaignPageSize,
+      });
+    }
+
+    throw error;
   });
 
-  return { campaigns: dedupeResources(fallbackCollection.data).filter((campaign) => campaign.id), endpointPath: "campaigns" };
+  return {
+    campaigns: dedupeResources(fallbackCollection.data).filter((campaign) => campaign.id),
+    includedTags: dedupeResources(fallbackCollection.included).filter((resource) =>
+      (resource.type || "").toLowerCase().includes("tag"),
+    ),
+    endpointPath: "campaigns",
+  };
 }
 
-async function fetchCampaignTags(rows: KlaviyoSyncRows, client: KlaviyoClientParams, campaign: KlaviyoResourceObject) {
+async function fetchCampaignTags(
+  rows: KlaviyoSyncRows,
+  client: KlaviyoClientParams,
+  campaign: KlaviyoResourceObject,
+  includedTagsById: Map<string, KlaviyoResourceObject>,
+): Promise<CampaignTags> {
   const campaignId = campaign.id || "";
   const tagResources: KlaviyoResourceObject[] = [];
   const tagIds = relationshipIds(campaign, ["tag"], ["tag"]);
+
+  if (hasRelationship(campaign, ["tags"])) {
+    tagResources.push(...tagIds.flatMap((tagId) => {
+      const tag = includedTagsById.get(tagId);
+      return tag ? [tag] : [];
+    }));
+
+    return {
+      tagIds: uniqueStrings(tagIds),
+      tagResources: dedupeResources(tagResources),
+      endpointPaths: ["campaigns?include=tags"],
+    };
+  }
 
   const tagCollection = await fetchOptionalCollection(rows, {
     ...client,
@@ -731,47 +798,52 @@ async function fetchCampaignTags(rows: KlaviyoSyncRows, client: KlaviyoClientPar
   };
 }
 
-async function fetchCampaignAudiences(rows: KlaviyoSyncRows, client: KlaviyoClientParams, campaign: KlaviyoResourceObject) {
-  const campaignId = campaign.id || "";
-  const campaignAudienceResources: KlaviyoResourceObject[] = [];
-  const seedAudienceIds = relationshipIds(campaign, ["audience", "list", "segment"], ["audience", "recipient"]);
-
+async function fetchCampaignAudienceMap(rows: KlaviyoSyncRows, client: KlaviyoClientParams) {
+  const audienceByCampaignId = new Map<string, CampaignAudiences>();
   const audienceCollection = await fetchOptionalCollection(rows, {
     ...client,
-    path: `campaigns/${campaignId}/campaign-audiences`,
-    label: `Campaign audiences for ${campaignId}`,
-    pageSize: null,
+    path: "campaigns",
+    label: "Campaign audience relationship map",
+    query: {
+      include: "campaign-audiences",
+    },
+    pageSize: campaignPageSize,
     revision: getKlaviyoBetaRevision(),
   });
+  const audienceResourcesById = new Map(
+    dedupeResources(audienceCollection.included)
+      .filter((resource) => (resource.type || "").toLowerCase().includes("campaign-audience"))
+      .flatMap((resource) => (resource.id ? [[resource.id, resource] as const] : [])),
+  );
 
-  campaignAudienceResources.push(...audienceCollection.data);
-  seedAudienceIds.push(...audienceCollection.data.map((audience) => audience.id || ""));
+  audienceCollection.data.forEach((campaign) => {
+    const campaignId = campaign.id || "";
 
-  let audienceIdCollection: KlaviyoCollection = {
-    data: [],
-    included: [],
-    endpointPath: `campaigns/${campaignId}/relationships/campaign-audiences`,
-    pageCount: 0,
-  };
+    if (!campaignId) {
+      return;
+    }
 
-  // The beta campaign-audience endpoint can return the audience resource itself. Avoid the extra
-  // relationship-ID call unless the campaign resource and audience endpoint both leave us without IDs.
-  if (!uniqueStrings(seedAudienceIds).length) {
-    audienceIdCollection = await fetchOptionalCollection(rows, {
-      ...client,
-      path: `campaigns/${campaignId}/relationships/campaign-audiences`,
-      label: `Campaign audience IDs for ${campaignId}`,
-      pageSize: null,
-      revision: getKlaviyoBetaRevision(),
+    const audienceIds = relationshipIds(campaign, ["campaign-audience", "audience"], ["campaign-audience", "audience"]);
+    const audienceResources = audienceIds.flatMap((audienceId) => {
+      const audience = audienceResourcesById.get(audienceId);
+      return audience ? [audience] : [];
     });
-    seedAudienceIds.push(...audienceIdCollection.data.map((audience) => audience.id || ""));
-  }
 
-  return {
-    audienceIds: uniqueStrings(seedAudienceIds),
-    audienceResources: dedupeResources(campaignAudienceResources),
-    endpointPaths: [audienceCollection.endpointPath, audienceIdCollection.endpointPath],
-  };
+    audienceByCampaignId.set(campaignId, {
+      audienceIds,
+      audienceResources: dedupeResources(audienceResources),
+      endpointPaths: [audienceCollection.endpointPath],
+    });
+  });
+
+  console.info(
+    `[sync:klaviyo] Campaign audience relationship map found ${Array.from(audienceByCampaignId.values()).reduce(
+      (total, audiences) => total + audiences.audienceIds.length,
+      0,
+    )} audience relationship(s) across ${audienceByCampaignId.size} campaign(s) for region ${client.regionSlug}.`,
+  );
+
+  return audienceByCampaignId;
 }
 
 export async function fetchKlaviyoSyncRows(params: {
@@ -791,10 +863,12 @@ export async function fetchKlaviyoSyncRows(params: {
     `[sync:klaviyo] Region ${params.region.slug} campaign metadata sync started for run ${params.syncRunId}. Scope=campaigns,campaign-audiences,campaign-tags,campaign-status.`,
   );
 
-  const { campaigns, endpointPath } = await fetchCampaigns(rows, client);
+  const { campaigns, includedTags, endpointPath } = await fetchCampaigns(rows, client);
+  const includedTagsById = new Map(includedTags.flatMap((tag) => (tag.id ? [[tag.id, tag] as const] : [])));
+  const audienceByCampaignId = await fetchCampaignAudienceMap(rows, client);
 
   console.info(
-    `[sync:klaviyo] Fetching campaign tags and audiences for ${campaigns.length} campaign(s) in region ${params.region.slug} with concurrency ${perCampaignConcurrency}.`,
+    `[sync:klaviyo] Resolving campaign tags and audiences for ${campaigns.length} campaign(s) in region ${params.region.slug} with concurrency ${perCampaignConcurrency}.`,
   );
 
   const details = await mapWithConcurrency(campaigns, perCampaignConcurrency, async (campaign, index) => {
@@ -804,8 +878,12 @@ export async function fetchKlaviyoSyncRows(params: {
       `[sync:klaviyo] Campaign detail ${index + 1}/${campaigns.length} started for ${campaignId} in region ${params.region.slug}.`,
     );
 
-    const tags = await fetchCampaignTags(rows, client, campaign);
-    const audiences = await fetchCampaignAudiences(rows, client, campaign);
+    const tags = await fetchCampaignTags(rows, client, campaign, includedTagsById);
+    const audiences = audienceByCampaignId.get(campaign.id || "") || {
+      audienceIds: [],
+      audienceResources: [],
+      endpointPaths: ["campaigns?include=campaign-audiences"],
+    };
 
     console.info(
       `[sync:klaviyo] Campaign detail ${index + 1}/${campaigns.length} completed for ${campaignId}: ${tags.tagIds.length} tag id(s), ${audiences.audienceIds.length} audience id(s).`,

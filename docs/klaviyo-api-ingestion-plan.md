@@ -45,8 +45,8 @@ Current synced data:
 | --- | --- | --- |
 | Campaigns | Fetches email, SMS, and mobile push campaigns. Promotes name, status, channel list, archived flag, A/B test metadata, send dates, and raw campaign payload. | `klaviyo_campaigns`, `klaviyo_raw_resources` |
 | Campaign status | Stored from each campaign's attributes and rendered by the Campaigns table filters/status pill. Archived campaigns are treated as archived in UI filtering. | `klaviyo_campaigns.status`, `klaviyo_campaigns.archived` |
-| Campaign tags | Fetches campaign-scoped tags and uses campaign tag IDs to create campaign tag relationships. Per-campaign tag endpoints do not send `page[size]` because Klaviyo rejects pagination on these relationship resources. | `klaviyo_tags`, `klaviyo_tag_relationships`, `klaviyo_raw_resources` |
-| Campaign audiences | Fetches campaign-scoped campaign-audience resources/IDs with the beta `.pre` revision and stores relationships for Campaigns table audience filtering. | `klaviyo_campaign_audiences`, `klaviyo_campaigns.audience_ids`, `klaviyo_raw_resources` |
+| Campaign tags | Uses `GET /campaigns?include=tags` as the primary source for campaign tag IDs/resources, then falls back to campaign-scoped tag/tag-ID endpoints only when a campaign payload lacks tag relationships. Per-campaign fallback endpoints do not send `page[size]` because Klaviyo rejects pagination on these relationship resources. | `klaviyo_tags`, `klaviyo_tag_relationships`, `klaviyo_raw_resources` |
+| Campaign audiences | Uses beta `GET /campaigns?include=campaign-audiences` with the `.pre` revision to build one campaign-to-audience relationship map instead of probing every campaign with audience endpoints. | `klaviyo_campaign_audiences`, `klaviyo_campaigns.audience_ids`, `klaviyo_raw_resources` |
 
 ## Date-Scopable Reporting Rules
 
@@ -62,10 +62,10 @@ Current synced data:
   skipped optional endpoint warnings, and produced row counts.
 - Logs must not include API keys, auth headers, raw payloads, customer PII, or recipient-level data.
 - Campaigns are required. If campaign fetch fails after retries, the Klaviyo region should fail clearly.
-- Campaign tag and audience lookups are optional per campaign. After bounded retries, they should warn and
-  continue so campaign status and core campaign metadata can still sync.
-- Per-campaign tag/audience requests run sequentially with low concurrency to avoid duplicate request storms.
-- Do not add `page[size]` to campaign-scoped tag/audience relationship endpoints.
+- Campaign tag fallback and campaign-audience relationship-map lookups are optional. After bounded retries,
+  they should warn and continue so campaign status and core campaign metadata can still sync.
+- Per-campaign requests should be avoided when collection includes can provide the relationship data.
+- Do not add `page[size]` to campaign-scoped tag relationship fallback endpoints.
 
 ## Deferred Klaviyo Areas
 

@@ -61,7 +61,11 @@ Next.js and Vercel:
   tags, and campaign tag IDs.
 - Campaigns can be fetched by channel so email, SMS, and mobile push campaign rows can be deduplicated into
   one local campaign table.
-- Campaign-scoped tag/audience relationship endpoints should not receive `page[size]`; Klaviyo rejects that
+- Campaign collection requests should include tags when Klaviyo supports it, reducing per-campaign tag
+  endpoint pressure.
+- Campaign audience relationship data should come from beta `GET /campaigns?include=campaign-audiences`
+  instead of one audience request per campaign.
+- Campaign-scoped tag relationship fallback endpoints should not receive `page[size]`; Klaviyo rejects that
   query on those resources.
 - Campaign audience beta endpoints should use the `.pre` API revision only for the beta request.
 - The Metrics API can still return metric `id`, `name`, and `integration` for the existing Settings-time
@@ -79,7 +83,7 @@ Decision:
   attempts, region slug, sync run ID, row counts, and JSON:API error summaries.
 - Treat campaign fetch as required; if campaigns cannot be fetched after bounded retries, fail the Klaviyo
   region clearly.
-- Treat campaign tag and campaign-audience detail endpoints as optional per-campaign enrichment; after
+- Treat campaign tag fallback and campaign-audience relationship-map endpoints as optional enrichment; after
   bounded retries, log sanitized warnings and continue syncing core campaign rows.
 - Keep beta/pre-release Klaviyo endpoints optional and non-fatal, and send the `.pre` API revision only for
   endpoints that require it.

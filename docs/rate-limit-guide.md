@@ -37,12 +37,12 @@ server-only code.
 The sync must:
 
 - Use cursor pagination and bounded retry/backoff for 429 responses.
-- Do not send `page[size]` to campaign-scoped tag/audience relationship endpoints because Klaviyo rejects
+- Prefer campaign collection includes for relationship data: stable campaign fetches include tags, and the
+  beta campaign relationship-map fetch includes campaign audiences.
+- Do not send `page[size]` to campaign-scoped tag relationship fallback endpoints because Klaviyo rejects
   that query on those resources.
-- Fetch per-campaign tag and audience details sequentially with low concurrency so one manual sync does not
-  open hundreds of duplicate Klaviyo requests at once.
-- Treat campaign tag and campaign-audience detail endpoint failures as non-fatal sanitized warnings after
-  bounded retries. Core campaign fetch failures should still fail the Klaviyo region clearly.
+- Treat campaign tag fallback and campaign-audience relationship-map failures as non-fatal sanitized
+  warnings after bounded retries. Core campaign fetch failures should still fail the Klaviyo region clearly.
 - Never log raw payloads, customer PII, auth headers, API keys, push tokens, subscription details, or event properties.
 
 ### Vercel Cron

@@ -215,8 +215,8 @@ Useful current scopes:
 
 - Campaign read access lets the sync fetch campaigns and campaign status.
 - Tag read access lets the sync fetch campaign tags and campaign tag IDs.
-- Campaign audience beta/read access lets the sync fetch campaign audience relationships where Klaviyo
-  exposes that beta API for the account.
+- Campaign audience beta/read access lets the sync fetch the beta campaign audience relationship map where
+  Klaviyo exposes that beta API for the account.
 - `metrics:read` is optional and is used only by the existing Settings-time conversion metric detector, not
   by the current campaign metadata sync.
 
@@ -268,8 +268,10 @@ Current active behavior:
 - `src/lib/integrations/klaviyo-sync.ts` runs during manual and cron sync for connected Klaviyo regions.
 - Manual and cron sync write Klaviyo campaign, campaign audience, campaign tag, campaign tag relationship,
   and sanitized raw campaign/tag/audience resource rows.
-- The campaign-audience beta endpoint uses a `.pre` revision automatically and is logged as a sanitized
-  warning when unavailable.
+- Stable campaign fetches request included tags when Klaviyo supports them. A per-campaign tag lookup is
+  used only as a fallback when a campaign payload does not expose tag relationships.
+- The campaign-audience beta relationship-map fetch uses a `.pre` revision automatically and is logged as a
+  sanitized warning when unavailable.
 - Flows, profiles, events, metrics, lists, segments, Reporting API rows, broad raw resources, and images are
   intentionally not synced by the active Klaviyo sync.
 
@@ -341,9 +343,9 @@ Check:
 - The connected private key includes campaign, tag, and campaign-audience read scopes needed for the current
   campaign metadata slice.
 - The API revision in `KLAVIYO_REVISION` is still supported.
-- Campaign tag and audience detail endpoints can be skipped with sanitized warnings when a scope, endpoint,
-  beta surface, rate limit, or transient platform error is unavailable.
-- Per-campaign tag/audience endpoints should not include `page[size]`; Klaviyo rejects that query on those
+- Campaign tag fallback and campaign-audience relationship-map endpoints can be skipped with sanitized
+  warnings when a scope, endpoint, beta surface, rate limit, or transient platform error is unavailable.
+- Per-campaign tag fallback endpoints should not include `page[size]`; Klaviyo rejects that query on those
   campaign relationship resources.
 
 ## Security Rules
