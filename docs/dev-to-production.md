@@ -47,6 +47,16 @@ For the full platform connection guide, required scopes, smoke tests, and troubl
 - Restrict signup to internal users through Supabase settings or an invitation workflow.
 - Ensure `DEMO_MODE` is `false` or unset. Local development currently uses demo mode so the UI can be reviewed without live credentials.
 
+## Initial User Bootstrap
+
+For the full process, see `/docs/initial-user-setup.md`.
+
+- Create the first internal user with a one-time server-side script or Supabase Auth admin tooling.
+- Confirm the first user's email during creation so they can sign in immediately.
+- Delete any temporary user-creation script after the account is verified.
+- Rotate any bootstrap password that was shared through chat, tickets, or other retained systems.
+- Keep public signup disabled unless an internal approval workflow is added.
+
 ## Shopify Production Checks
 
 - Create or confirm Shopify app access for each shop.
@@ -57,7 +67,7 @@ For the full platform connection guide, required scopes, smoke tests, and troubl
 ## Klaviyo Production Checks
 
 - Create private keys with read-only or custom reporting scopes.
-- Grant `campaigns:read` and `flows:read`; add `metrics:read` only if future metric aggregate reporting is implemented.
+- Grant `campaigns:read`, `flows:read`, and `metrics:read`; `metrics:read` is used to auto-detect the conversion metric ID during Klaviyo connection.
 - Confirm campaign and flow report endpoints return expected fields for each account.
 - Confirm the API revision is supported.
 - Store private keys only through `/settings`, where they are encrypted before being saved to Supabase.

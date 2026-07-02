@@ -9,6 +9,7 @@ import "server-only";
 
 import { isDemoMode } from "@/lib/env";
 import { demoRegions } from "@/lib/config/demo-regions";
+import { fetchPreferredKlaviyoConversionMetricId } from "@/lib/integrations/klaviyo";
 import { encryptSecret, decryptSecret } from "@/lib/security/secret-encryption";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import type { PlatformConnectionSummary, RegionIntegrationConfig } from "@/lib/types";
@@ -41,6 +42,7 @@ type PlatformConnectionDbRow = {
 };
 
 export type SavePlatformConnectionInput = {
+  provider?: "shopify" | "klaviyo" | "both";
   slug: string;
   name: string;
   currencyCode: string;
@@ -49,7 +51,6 @@ export type SavePlatformConnectionInput = {
   shopifyAdminAccessToken?: string;
   klaviyoPrivateKey?: string;
   klaviyoAccountLabel?: string;
-  klaviyoConversionMetricId?: string;
   userId: string;
 };
 
@@ -85,6 +86,23 @@ function normalizeCurrencyCode(value: string) {
   return currencyCode;
 }
 
+function normalizeTimezone(value: string) {
+  const timezone = value.trim();
+
+  if (!timezone) {
+    throw new Error("Timezone is required.");
+  }
+
+  try {
+    // Intl validates IANA timezone names without maintaining a brittle hand-written allowlist.
+    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+  } catch {
+    throw new Error("Select a valid IANA timezone.");
+  }
+
+  return timezone;
+}
+
 function normalizeShopDomain(value: string) {
   const domain = value
     .trim()
@@ -97,6 +115,11 @@ function normalizeShopDomain(value: string) {
   }
 
   return domain;
+}
+
+function normalizeOptionalShopDomain(value: string) {
+  const trimmed = optionalTrim(value);
+  return trimmed ? normalizeShopDomain(trimmed) : null;
 }
 
 function optionalTrim(value?: string) {
@@ -188,33 +211,51 @@ export async function savePlatformConnection(input: SavePlatformConnectionInput)
 
   const admin = getSupabaseAdmin();
   const now = new Date().toISOString();
+  const provider = input.provider || "both";
   const slug = normalizeSlug(input.slug);
   const currencyCode = normalizeCurrencyCode(input.currencyCode);
-  const shopDomain = normalizeShopDomain(input.shopifyShopDomain);
+  const timezone = normalizeTimezone(input.timezone);
+  const shopDomain = normalizeOptionalShopDomain(input.shopifyShopDomain);
   const shopifyToken = optionalTrim(input.shopifyAdminAccessToken);
   const klaviyoPrivateKey = optionalTrim(input.klaviyoPrivateKey);
-  const klaviyoAccountLabel = optionalTrim(input.klaviyoAccountLabel) || input.name.trim();
-  const klaviyoConversionMetricId = optionalTrim(input.klaviyoConversionMetricId);
+  const klaviyoAccountLabel = optionalTrim(input.klaviyoAccountLabel);
 
-  if (!input.name.trim() || !input.timezone.trim()) {
-    throw new Error("Region name and timezone are required.");
+  if (!input.name.trim()) {
+    throw new Error("Region name is required.");
+  }
+
+  if ((provider === "shopify" || provider === "both") && !shopDomain) {
+    throw new Error("Shopify shop domain is required for Shopify connections.");
+  }
+
+  const detectedKlaviyoConversionMetricId =
+    klaviyoPrivateKey && provider !== "shopify"
+      ? await fetchPreferredKlaviyoConversionMetricId({
+          privateKey: klaviyoPrivateKey,
+          regionSlug: slug,
+        })
+      : undefined;
+
+  const regionPayload: Record<string, string | boolean | null> = {
+    slug,
+    name: input.name.trim(),
+    currency_code: currencyCode,
+    timezone,
+    is_active: true,
+    updated_at: now,
+  };
+
+  if (shopDomain || provider !== "klaviyo") {
+    regionPayload.shopify_shop_domain = shopDomain;
+  }
+
+  if (klaviyoAccountLabel || provider !== "shopify") {
+    regionPayload.klaviyo_account_label = klaviyoAccountLabel || input.name.trim();
   }
 
   const { data: region, error: regionError } = await admin
     .from("regions")
-    .upsert(
-      {
-        slug,
-        name: input.name.trim(),
-        currency_code: currencyCode,
-        timezone: input.timezone.trim(),
-        shopify_shop_domain: shopDomain,
-        klaviyo_account_label: klaviyoAccountLabel,
-        is_active: true,
-        updated_at: now,
-      },
-      { onConflict: "slug" },
-    )
+    .upsert(regionPayload, { onConflict: "slug" })
     .select("id,slug")
     .single();
 
@@ -234,14 +275,31 @@ export async function savePlatformConnection(input: SavePlatformConnectionInput)
     throw new Error("Paste at least one Shopify or Klaviyo credential for a new connection.");
   }
 
+  if (provider === "shopify" && !shopifyToken && !existingConnection?.shopify_admin_token_ciphertext) {
+    throw new Error("Paste the Shopify Admin API token before saving the Shopify connection.");
+  }
+
+  if (provider === "klaviyo" && !klaviyoPrivateKey && !existingConnection?.klaviyo_private_key_ciphertext) {
+    throw new Error("Paste the Klaviyo private API key before saving the Klaviyo connection.");
+  }
+
   const payload: Record<string, string | null> = {
     region_id: region.id,
-    shopify_shop_domain: shopDomain,
-    klaviyo_account_label: klaviyoAccountLabel,
-    klaviyo_conversion_metric_id: klaviyoConversionMetricId,
     updated_by: input.userId,
     updated_at: now,
   };
+
+  if (shopDomain || provider !== "klaviyo") {
+    payload.shopify_shop_domain = shopDomain;
+  }
+
+  if (klaviyoAccountLabel || provider !== "shopify") {
+    payload.klaviyo_account_label = klaviyoAccountLabel || input.name.trim();
+  }
+
+  if (provider !== "shopify" && klaviyoPrivateKey) {
+    payload.klaviyo_conversion_metric_id = detectedKlaviyoConversionMetricId;
+  }
 
   if (!existingConnection) {
     payload.created_by = input.userId;

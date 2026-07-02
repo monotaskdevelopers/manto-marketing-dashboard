@@ -20,13 +20,14 @@ The flow is:
 
 1. Internal user opens `/settings`.
 2. User follows the on-page Shopify and Klaviyo setup guides.
-3. User enters the region details, Shopify shop domain, Shopify Admin API token, Klaviyo private key, and optional Klaviyo conversion metric ID.
+3. User enters the region details, Shopify shop domain, Shopify Admin API token, and Klaviyo private key.
 4. A server action validates the authenticated user.
-5. The server encrypts the Shopify and Klaviyo secrets with `APP_ENCRYPTION_KEY`.
-6. The encrypted secrets and non-secret connection metadata are saved to Supabase.
-7. Hourly cron and manual sync load active connections from Supabase.
-8. Sync decrypts secrets only on the server, calls Shopify/Klaviyo, and writes normalized reporting rows.
-9. Users can disconnect Shopify or Klaviyo from `/settings`; disconnect removes the encrypted secret from the database.
+5. When a Klaviyo key is saved, the server calls Klaviyo's Metrics API and stores the best detected conversion metric ID.
+6. The server encrypts the Shopify and Klaviyo secrets with `APP_ENCRYPTION_KEY`.
+7. The encrypted secrets and non-secret connection metadata are saved to Supabase.
+8. Hourly cron and manual sync load active connections from Supabase.
+9. Sync decrypts secrets only on the server, calls Shopify/Klaviyo, and writes normalized reporting rows.
+10. Users can disconnect Shopify or Klaviyo from `/settings`; disconnect removes the encrypted secret from the database.
 
 ## Architecture Decision
 
@@ -49,6 +50,7 @@ This keeps the tool easier to operate for non-developers while still avoiding pl
 - Shopify API access scopes: `https://shopify.dev/docs/api/usage/access-scopes`
 - Shopify Admin GraphQL orders query: `https://shopify.dev/docs/api/admin-graphql/latest/queries/orders`
 - Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
+- Klaviyo Get Metrics endpoint: `https://developers.klaviyo.com/en/reference/get_metrics`
 - Klaviyo campaign values reports: `https://developers.klaviyo.com/en/reference/query_campaign_values`
 - Klaviyo flow values reports: `https://developers.klaviyo.com/en/reference/query_flow_values`
 - Supabase API security and RLS: `https://supabase.com/docs/guides/api/securing-your-api`
@@ -131,7 +133,7 @@ connections cannot be decrypted.
 - `shopify_disconnected_at`
 - `klaviyo_account_label`
 - `klaviyo_private_key_ciphertext`
-- `klaviyo_conversion_metric_id`
+- `klaviyo_conversion_metric_id`, auto-detected from Klaviyo's Metrics API when a new Klaviyo key is saved
 - `klaviyo_connected_at`
 - `klaviyo_disconnected_at`
 - `created_by`
@@ -147,13 +149,20 @@ The Settings page should allow internal users to:
 - See every configured region.
 - See whether Shopify is connected.
 - See whether Klaviyo is connected.
-- Connect or update a region's Shopify/Klaviyo credentials.
+- Connect or update Shopify separately from Klaviyo.
+- Connect or update Klaviyo separately from Shopify.
+- Open a multi-step Shopify modal that guides the user through custom app setup before saving.
+- Open a multi-step Klaviyo modal that guides the user through private key setup before saving.
+- Select region timezone from a dropdown instead of typing the timezone manually.
+- Let the app detect the Klaviyo conversion metric ID automatically after saving a Klaviyo key.
 - Disconnect Shopify for a region.
 - Disconnect Klaviyo for a region.
 - Deactivate a region without deleting historical reporting rows.
-- Read step-by-step guidance for creating Shopify custom apps and Klaviyo private keys.
+- Read step-by-step guidance inside each platform-specific modal.
 
 The page should never show existing secret values. If a key needs to change, the user pastes a new key.
+Existing saved keys remain unchanged when a user updates non-secret metadata and leaves the password field
+blank.
 
 ## Shopify Setup Guide For The Settings Page
 
@@ -178,9 +187,11 @@ Steps:
 5. Install the app.
 6. Copy the Admin API access token immediately.
 7. Copy the shop domain, for example `brand-us.myshopify.com`.
-8. Paste the shop domain and token into `/settings`.
-9. Save the connection.
-10. Run a manual sync to confirm the token works.
+8. Click `Connect Shopify` or `Update Shopify` in `/settings`.
+9. Follow the multi-step Shopify popup guide.
+10. Paste the shop domain and token into the Shopify form.
+11. Save the connection.
+12. Run a manual sync to confirm the token works.
 
 The app sends Shopify requests with:
 
@@ -198,10 +209,10 @@ Required current scopes:
 
 - `campaigns:read`
 - `flows:read`
-
-Optional future scope:
-
 - `metrics:read`
+
+`metrics:read` is required because the app automatically detects the best conversion metric ID through
+Klaviyo's Metrics API after the private key is saved.
 
 Steps:
 
@@ -209,17 +220,28 @@ Steps:
 2. Go to account API key settings.
 3. Create a private API key.
 4. Use read-only or custom scopes.
-5. Include `campaigns:read` and `flows:read`.
+5. Include `campaigns:read`, `flows:read`, and `metrics:read`.
 6. Copy the private key immediately.
-7. Paste the private key into `/settings`.
-8. Add a conversion metric ID only if the account needs explicit revenue metric selection.
-9. Save the connection.
-10. Run a manual sync to confirm reports return data.
+7. Click `Connect Klaviyo` or `Update Klaviyo` in `/settings`.
+8. Follow the multi-step Klaviyo popup guide.
+9. Paste the private key into the Klaviyo form.
+10. Save the connection.
+11. The server calls Klaviyo's Metrics API with `fields[metric]=id,name,integration`.
+12. The server prefers revenue metrics such as `Placed Order` or `Ordered Product`.
+13. Run a manual sync to confirm reports return data.
 
 The app sends Klaviyo requests with:
 
 ```http
 Authorization: Klaviyo-API-Key {decrypted private key}
+revision: 2026-04-15
+```
+
+Automatic metric ID lookup requests use:
+
+```http
+GET https://a.klaviyo.com/api/metrics?fields[metric]=id,name,integration
+Authorization: Klaviyo-API-Key {private key with metrics:read}
 revision: 2026-04-15
 ```
 
@@ -287,10 +309,10 @@ Check:
 Check:
 
 - Private key belongs to the correct account.
-- Key has `campaigns:read` and `flows:read`.
+- Key has `campaigns:read`, `flows:read`, and `metrics:read`.
 - `KLAVIYO_REVISION` is supported.
 - The account has campaign or flow data in the selected date range.
-- `klaviyoConversionMetricId` is configured if revenue returns empty but engagement metrics work.
+- The Settings save step detected a conversion metric; reconnect Klaviyo if the metric was missing or stale.
 
 ## Security Rules
 

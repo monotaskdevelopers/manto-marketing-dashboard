@@ -15,3 +15,4 @@ component is created, renamed, moved, or removed.
 | `TrendBars` | `/src/components/trend-bars.tsx` | Lightweight CSS bar chart for daily trend summaries that fits mobile widths without a charting dependency. |
 | `SyncButton` | `/src/components/sync-button.tsx` | Client-side manual sync button with loading and result states. |
 | `StatusBadge` | `/src/components/status-badge.tsx` | Small status label for sync and health states. |
+| `PlatformConnectionManager` | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Page-specific Settings component with separate Shopify and Klaviyo guided connection modals. |

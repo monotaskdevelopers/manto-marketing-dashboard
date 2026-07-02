@@ -19,6 +19,7 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Avoid logging customer data, order details, emails, tokens, or API payloads.
 - Store Shopify and Klaviyo secrets encrypted in `platform_connections`, not in JSON env config.
 - Keep `APP_ENCRYPTION_KEY` server-only and outside Supabase.
+- Create bootstrap users only through trusted server-side admin tooling.
 
 ## Known Risks
 
@@ -64,6 +65,20 @@ Mitigation:
 - Track `created_by` and `updated_by` user IDs in `platform_connections`.
 - Add admin-only RBAC before opening the tool to a broader internal audience.
 
+### Bootstrap Password Handling
+
+Risk:
+
+- The first user's temporary password can be exposed if it is pasted into a retained chat, shell command,
+  script file, or terminal output.
+
+Mitigation:
+
+- Read bootstrap passwords through hidden terminal input when possible.
+- Delete one-time setup scripts immediately after use.
+- Rotate bootstrap passwords after first login if they were shared in a retained system.
+- Move to an invite or admin-only user-management flow before broader rollout.
+
 ### Manual Sync Abuse
 
 Risk:
@@ -104,6 +119,7 @@ Mitigation:
 ## Production Follow-Ups
 
 - Confirm Supabase email domain restrictions or invitation-only signup.
+- Confirm the first internal user can sign in and rotate any password shared during bootstrap.
 - Rotate platform tokens before production if they were used in local testing.
 - Review Supabase RLS policies with real project settings.
 - Confirm `platform_connections` remains service-role-only.

@@ -35,6 +35,13 @@ export type KlaviyoFlowSyncRow = {
 
 type KlaviyoJson = Record<string, unknown>;
 
+type KlaviyoMetricCandidate = {
+  id: string;
+  name: string;
+  integrationName: string;
+  integrationCategory: string;
+};
+
 function asRecord(value: unknown): KlaviyoJson {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as KlaviyoJson)
@@ -94,6 +101,38 @@ async function klaviyoRequest(params: {
   if (!response.ok) {
     console.warn(`[sync:klaviyo] Request failed for region ${params.region.slug}: ${response.status}.`);
     throw new Error(`Klaviyo request failed for region ${params.region.slug}.`);
+  }
+
+  return (await response.json()) as KlaviyoJson;
+}
+
+async function klaviyoGetRequest(params: {
+  privateKey: string;
+  path: string;
+  regionSlug: string;
+}) {
+  const response = await fetch(`https://a.klaviyo.com/api/${params.path}`, {
+    method: "GET",
+    headers: {
+      Authorization: `Klaviyo-API-Key ${params.privateKey}`,
+      Accept: "application/vnd.api+json",
+      revision: getKlaviyoRevision(),
+    },
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    console.warn(`[settings:klaviyo] Metrics lookup unauthorized for region ${params.regionSlug}.`);
+    throw new Error("Grant metrics:read to the Klaviyo private key so the conversion metric can be detected.");
+  }
+
+  if (response.status === 429) {
+    console.warn(`[settings:klaviyo] Metrics lookup rate limited for region ${params.regionSlug}.`);
+    throw new Error("Klaviyo metric lookup was rate limited. Wait briefly and try again.");
+  }
+
+  if (!response.ok) {
+    console.warn(`[settings:klaviyo] Metrics lookup failed for region ${params.regionSlug}: ${response.status}.`);
+    throw new Error("Unable to fetch Klaviyo metrics for automatic conversion metric detection.");
   }
 
   return (await response.json()) as KlaviyoJson;
@@ -161,6 +200,91 @@ function normalizeResult(value: unknown) {
     attributes,
     stats,
   };
+}
+
+function metricFromResponseItem(value: unknown): KlaviyoMetricCandidate | null {
+  const record = asRecord(value);
+  const attributes = asRecord(record.attributes);
+  const integration = asRecord(attributes.integration);
+  const id = readString(record, ["id"], "");
+  const name = readString(attributes, ["name"], "");
+
+  if (!id || !name) {
+    return null;
+  }
+
+  return {
+    id,
+    name,
+    integrationName: readString(integration, ["name"], ""),
+    integrationCategory: readString(integration, ["category"], ""),
+  };
+}
+
+function scoreConversionMetric(metric: KlaviyoMetricCandidate) {
+  const name = metric.name.toLowerCase();
+  const integrationName = metric.integrationName.toLowerCase();
+  const integrationCategory = metric.integrationCategory.toLowerCase();
+  const integrationText = `${integrationName} ${integrationCategory}`;
+  let score = 0;
+
+  // Prefer purchase/order metrics because campaign and flow revenue attribution should use revenue events.
+  if (name === "placed order") score += 100;
+  if (name === "ordered product") score += 90;
+  if (name.includes("placed order")) score += 80;
+  if (name.includes("ordered product")) score += 70;
+  if (name.includes("purchase")) score += 60;
+  if (name.includes("order")) score += 50;
+  if (name.includes("checkout")) score += 20;
+
+  if (integrationText.includes("shopify")) score += 25;
+  if (integrationText.includes("woocommerce")) score += 20;
+  if (integrationText.includes("ecommerce") || integrationText.includes("e-commerce")) score += 15;
+
+  return score;
+}
+
+export async function fetchPreferredKlaviyoConversionMetricId(params: {
+  privateKey: string;
+  regionSlug: string;
+}) {
+  const metrics: KlaviyoMetricCandidate[] = [];
+  let nextPath: string | null = "metrics?fields[metric]=id,name,integration";
+  let pageCount = 0;
+
+  while (nextPath && pageCount < 5) {
+    const payload = await klaviyoGetRequest({
+      privateKey: params.privateKey,
+      path: nextPath,
+      regionSlug: params.regionSlug,
+    });
+
+    metrics.push(...asArray(payload.data).flatMap((item) => metricFromResponseItem(item) || []));
+
+    const links = asRecord(payload.links);
+    const nextLink = readString(links, ["next"], "");
+
+    nextPath = nextLink.startsWith("https://a.klaviyo.com/api/")
+      ? nextLink.replace("https://a.klaviyo.com/api/", "")
+      : null;
+    pageCount += 1;
+  }
+
+  const bestMetric = metrics
+    .map((metric) => ({ metric, score: scoreConversionMetric(metric) }))
+    .filter((result) => result.score > 0)
+    .sort((left, right) => right.score - left.score)[0]?.metric;
+
+  if (!bestMetric) {
+    console.warn(`[settings:klaviyo] No revenue conversion metric detected for region ${params.regionSlug}.`);
+    return null;
+  }
+
+  console.info(
+    `[settings:klaviyo] Detected conversion metric "${bestMetric.name}" for region ${params.regionSlug}.`,
+  );
+
+  return bestMetric.id;
 }
 
 export async function fetchKlaviyoCampaignReports(params: {

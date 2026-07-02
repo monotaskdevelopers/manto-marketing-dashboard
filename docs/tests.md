@@ -13,7 +13,7 @@ behavior.
 | --- | --- | --- | --- |
 | `DEMO_MODE=true` | `src/lib/data/demo-data.ts` and data access functions | Allows local UI review when Supabase and platform credentials are not configured. | Must be `false` or unset in production. |
 | Manual sync range cap | `src/app/api/sync/route.ts` | Prevents excessive manual sync windows. | Keep and tune based on real usage. |
-| Settings credential entry | `/src/app/(dashboard)/settings/page.tsx` | Lets local/staging users connect platform credentials for testing. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
+| Settings credential entry | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Lets local/staging users connect Shopify and Klaviyo credentials separately through guided modals. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
 
 ## Verification Plan
 
@@ -26,6 +26,11 @@ behavior.
 - Verify dashboard shows an empty state when no data is synced yet.
 - Verify Settings rejects unauthenticated users through dashboard auth.
 - Verify Settings does not render saved platform secret values.
+- Verify the Shopify connect button opens the Shopify step-by-step modal.
+- Verify the Klaviyo connect button opens the Klaviyo step-by-step modal.
+- Verify provider-specific save forms do not require the other provider's credential.
+- Verify timezone is selected from a dropdown in both provider modals.
+- Verify the Klaviyo modal explains that conversion metric ID detection is automatic and requires `metrics:read`.
 - Verify disconnect nulls encrypted secret columns.
 - Verify sync ignores inactive or incomplete platform connections.
 
@@ -38,6 +43,7 @@ behavior.
 | Browser overview check | Passed | Confirmed dashboard content, sync button, no runtime overlay, and no console errors. |
 | Browser campaigns check | Passed | Confirmed campaign report page renders without a runtime overlay or console errors. |
 | Browser mobile check | Passed | Confirmed 390px viewport has no page-level horizontal overflow; wide tables scroll inside their own containers. |
+| Browser settings provider modal check | Passed | Confirmed separate Shopify and Klaviyo guided modals open, final forms stay provider-specific, and no browser console errors appear. |
 | `GET /api/cron/hourly-sync` without secret | Passed | Returned `401 Unauthorized` with a sanitized JSON error. |
 | `GET /api/sync/status` in local demo mode | Passed | Returned sanitized demo sync metadata because `DEMO_MODE=true` locally. |
 | Production build | Not run | Project instruction forbids build tests unless explicitly requested. |

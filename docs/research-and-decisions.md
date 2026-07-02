@@ -14,6 +14,7 @@ Klaviyo:
 - Klaviyo Query Campaign Values endpoint: `https://developers.klaviyo.com/en/reference/query_campaign_values`
 - Klaviyo Query Flow Values endpoint: `https://developers.klaviyo.com/en/reference/query_flow_values`
 - Klaviyo Query Metric Aggregates endpoint: `https://developers.klaviyo.com/en/reference/query_metric_aggregates`
+- Klaviyo Get Metrics endpoint: `https://developers.klaviyo.com/en/reference/get_metrics`
 - Klaviyo Get Campaigns endpoint: `https://developers.klaviyo.com/en/reference/get_campaigns`
 - Klaviyo Get Flows endpoint: `https://developers.klaviyo.com/en/reference/get_flows`
 - Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
@@ -48,6 +49,8 @@ Next.js and Vercel:
 - Klaviyo metric aggregate queries can support broader event rollups, but the MVP should prefer campaign and flow reporting endpoints for campaign/flow tables.
 - Klaviyo private keys authenticate server-side `/api` requests and should not be exposed in client-side code.
 - The campaign report endpoint requires `campaigns:read`; the flow report endpoint requires `flows:read`.
+- The Metrics API can return metric `id`, `name`, and `integration`; use it to automatically detect the conversion metric ID after a Klaviyo key is saved.
+- Klaviyo's Metrics API requires `metrics:read`, can filter by integration, and returns up to 200 metrics per page.
 - New integrations should use the latest stable API revision and track deprecation timelines.
 
 Decision:
@@ -55,6 +58,7 @@ Decision:
 - Use Klaviyo Reporting API for campaign and flow reports.
 - Keep the API revision in one constant so it can be upgraded deliberately.
 - Store normalized daily and item-level reports locally in Supabase so the UI does not repeatedly hit Klaviyo.
+- Do not ask users to paste a conversion metric ID manually; detect it server-side from the connected Klaviyo account.
 
 ### Shopify
 
@@ -123,5 +127,5 @@ Decision:
 
 - Each region maps to one Shopify shop and one Klaviyo account.
 - Currency conversion is not performed in MVP. Totals across mixed currencies must be interpreted carefully.
-- Klaviyo account-specific conversion metric IDs may need configuration if the default reporting response does not include the expected revenue fields.
+- Klaviyo account-specific conversion metric IDs should be auto-detected from the connected account when credentials are saved.
 - The app will be deployed on Vercel or a platform that can call the cron route hourly.

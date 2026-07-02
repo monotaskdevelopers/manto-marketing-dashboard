@@ -41,9 +41,17 @@ function publicError(error: unknown) {
 
 export async function savePlatformConnectionAction(formData: FormData) {
   const user = await requireUser();
+  const providerValue = readFormString(formData, "provider");
+
+  if (providerValue !== "shopify" && providerValue !== "klaviyo" && providerValue !== "both") {
+    settingsRedirect({ error: "Unknown platform provider." });
+  }
+
+  const provider = providerValue;
 
   try {
     await savePlatformConnection({
+      provider,
       slug: readFormString(formData, "slug"),
       name: readFormString(formData, "name"),
       currencyCode: readFormString(formData, "currencyCode"),
@@ -52,7 +60,6 @@ export async function savePlatformConnectionAction(formData: FormData) {
       shopifyAdminAccessToken: readFormString(formData, "shopifyAdminAccessToken"),
       klaviyoPrivateKey: readFormString(formData, "klaviyoPrivateKey"),
       klaviyoAccountLabel: readFormString(formData, "klaviyoAccountLabel"),
-      klaviyoConversionMetricId: readFormString(formData, "klaviyoConversionMetricId"),
       userId: user.id,
     });
   } catch (error) {
@@ -61,7 +68,14 @@ export async function savePlatformConnectionAction(formData: FormData) {
 
   revalidatePath("/settings");
   revalidatePath("/");
-  settingsRedirect({ status: "Connection saved." });
+  settingsRedirect({
+    status:
+      provider === "shopify"
+        ? "Shopify connection saved."
+        : provider === "klaviyo"
+          ? "Klaviyo connection saved."
+          : "Connection saved.",
+  });
 }
 
 export async function disconnectPlatformAction(formData: FormData) {

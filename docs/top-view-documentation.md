@@ -19,6 +19,7 @@ This project is a basic internal reporting dashboard that combines Shopify sales
 | `/docs/product-requirements.md` | Product source of truth | PRD summary, MVP boundaries, user goals, page requirements, success criteria, and known open questions. |
 | `/docs/research-and-decisions.md` | Research record | Official-source research for Klaviyo, Shopify, Supabase, Next.js, and Vercel Cron, plus the architecture decisions that came from that research. |
 | `/docs/platform-connections.md` | Platform connection guide | Developer setup for Shopify, Klaviyo, Supabase secrets, region config, smoke tests, sync flow, troubleshooting, and token rotation. |
+| `/docs/initial-user-setup.md` | Initial user setup guide | One-time Supabase Auth bootstrap process, security rules, verification, and cleanup requirements. |
 | `/docs/implementation-plan.md` | Build plan | Layman explanation, technical sequence, implementation phases, data flow, and execution checklist. |
 | `/docs/db-plan.md` | Database plan | Tables, indexes, RLS posture, schema naming, migrations, and data retention assumptions. |
 | `/docs/contract-documentation/api-contract-documentation.md` | API contract index | Route handlers, methods, auth requirements, request/response shapes, and criticality. |
@@ -46,7 +47,7 @@ This project is a basic internal reporting dashboard that combines Shopify sales
 - Data sources: Shopify Admin GraphQL API and Klaviyo APIs.
 - Sync frequency: Vercel Cron calls the sync route every hour.
 - Manual sync: authenticated internal users can trigger a fresh sync from the dashboard.
-- Secrets: platform API credentials stay server-side only through environment variables.
+- Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 
 ## Documentation Maintenance Rules
 

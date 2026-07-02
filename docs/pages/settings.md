@@ -14,9 +14,13 @@ Klaviyo platform connections without editing environment JSON.
 ## Contents
 
 - Current connection status by region.
-- Shopify setup guide.
-- Klaviyo setup guide.
-- Connect/update form for region metadata and platform credentials.
+- Separate Shopify connect/update button.
+- Separate Klaviyo connect/update button.
+- Multi-step Shopify setup modal.
+- Multi-step Klaviyo setup modal.
+- Provider-specific save forms for region metadata and platform credentials.
+- Timezone dropdown for region timezone selection.
+- Automatic Klaviyo conversion metric detection guidance inside the Klaviyo modal.
 - Disconnect controls for Shopify and Klaviyo.
 - Region deactivation control.
 
@@ -24,6 +28,10 @@ Klaviyo platform connections without editing environment JSON.
 
 - Saves region metadata to `regions`.
 - Encrypts Shopify and Klaviyo secrets before storing them in `platform_connections`.
+- Lets users save Shopify and Klaviyo independently instead of requiring both credentials at the same time.
+- Guides users through each provider setup in a focused popup modal before showing the save form.
+- Validates timezone values as IANA timezones and gives users a dropdown instead of free text.
+- Automatically detects a Klaviyo conversion metric ID from the connected account using Klaviyo's Metrics API.
 - Never shows saved secrets back to the browser.
 - Lets non-developer operators manage connections safely.
 - Keeps historical reporting rows when a platform or region is disconnected.
@@ -40,4 +48,5 @@ Klaviyo platform connections without editing environment JSON.
 
 - MVP does not include role-based settings permissions; any signed-in internal user can manage connections.
 - MVP does not run live credential validation before saving; validation happens on the next sync.
-- Future versions can add per-user audit history, test connection buttons, and stricter admin-only access.
+- Future versions can add per-user audit history, test connection buttons, stricter admin-only access, and
+  a dedicated region-management flow if the number of regions grows.
