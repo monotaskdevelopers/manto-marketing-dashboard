@@ -101,19 +101,36 @@ export const demoKlaviyoRows: KlaviyoDailyMetric[] = demoRegionRows.flatMap((reg
 );
 
 export const demoCampaignRows: KlaviyoCampaignReport[] = demoRegionRows.flatMap((region, regionIndex) =>
-  ["Summer Launch", "VIP Reminder", "Weekend Offer", "Back In Stock"].map((name, itemIndex) => ({
-    id: `campaign-${region.slug}-${itemIndex}`,
-    region_id: region.id,
-    campaign_id: `${region.slug}-campaign-${itemIndex}`,
-    campaign_name: name,
-    send_date: baseDates[Math.min(itemIndex + regionIndex, baseDates.length - 1)],
-    recipients_count: 7200 + itemIndex * 1400 + regionIndex * 900,
-    opens_count: 3100 + itemIndex * 420 + regionIndex * 310,
-    clicks_count: 640 + itemIndex * 110 + regionIndex * 80,
-    conversions_count: 42 + itemIndex * 8 + regionIndex * 7,
-    revenue_amount: 1450 + itemIndex * 620 + regionIndex * 510,
-    currency_code: region.currency_code,
-  })),
+  ["Summer Launch", "VIP Reminder", "Weekend Offer", "Back In Stock"].map((name, itemIndex) => {
+    const recipients = 7200 + itemIndex * 1400 + regionIndex * 900;
+    const delivered = Math.max(0, recipients - (32 + itemIndex * 5 + regionIndex * 4));
+    const opensUnique = 2600 + itemIndex * 330 + regionIndex * 260;
+    const clicksUnique = 82 + itemIndex * 24 + regionIndex * 18;
+    const conversionsUnique = 42 + itemIndex * 8 + regionIndex * 7;
+    const revenue = 1450 + itemIndex * 620 + regionIndex * 510;
+
+    return {
+      id: `campaign-${region.slug}-${itemIndex}`,
+      region_id: region.id,
+      campaign_id: `${region.slug}-campaign-${itemIndex}`,
+      campaign_name: name,
+      send_date: baseDates[Math.min(itemIndex + regionIndex, baseDates.length - 1)],
+      recipients_count: recipients,
+      delivered_count: delivered,
+      opens_count: opensUnique + 260 + itemIndex * 35,
+      opens_unique_count: opensUnique,
+      open_rate: delivered ? opensUnique / delivered : 0,
+      clicks_count: clicksUnique + 24 + itemIndex * 7,
+      clicks_unique_count: clicksUnique,
+      click_rate: delivered ? clicksUnique / delivered : 0,
+      conversions_count: conversionsUnique,
+      conversions_unique_count: conversionsUnique,
+      conversion_rate: delivered ? conversionsUnique / delivered : 0,
+      revenue_amount: revenue,
+      revenue_per_recipient: delivered ? revenue / delivered : 0,
+      currency_code: region.currency_code,
+    };
+  }),
 );
 
 export const demoFlowRows: KlaviyoFlowReport[] = demoRegionRows.flatMap((region, regionIndex) =>

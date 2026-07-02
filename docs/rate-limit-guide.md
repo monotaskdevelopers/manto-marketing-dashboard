@@ -20,7 +20,8 @@ Shopify Admin GraphQL uses calculated query cost limits. The sync must:
 
 ### Klaviyo Metrics API
 
-Klaviyo metric lookup can run when a Settings save includes a new Klaviyo private key with `metrics:read`.
+Klaviyo metric lookup can run when a Settings save includes a new Klaviyo private key with `metrics:read`
+and when campaign sync needs to auto-detect a conversion metric ID for campaign performance reports.
 The helper must:
 
 - Call only the Metrics API fields needed for conversion metric detection.
@@ -30,19 +31,26 @@ The helper must:
 
 ### Klaviyo Data Ingestion APIs
 
-Klaviyo account data ingestion is active only for the current campaign metadata slice. Manual and cron sync
-call Klaviyo campaigns, campaign tags, campaign tag IDs, and beta campaign-audience endpoints from
-server-only code.
+Klaviyo account data ingestion is active only for the current campaign slice. Manual and cron sync call
+Klaviyo campaigns, campaign tags, campaign tag IDs, beta campaign-audience endpoints, and one campaign
+values report request per metric day in each region sync window from server-only code.
 
 The sync must:
 
 - Use cursor pagination and bounded retry/backoff for 429 responses.
 - Prefer campaign collection includes for relationship data: stable campaign fetches include tags, and the
   beta campaign relationship-map fetch includes campaign audiences.
+- Keep campaign performance reporting to one `campaign-values-reports` request per metric day instead of
+  per-campaign report calls.
+- Adding native rate fields and unique action counts to `campaign-values-reports` should be done in the
+  existing daily request body, not by adding per-campaign follow-up requests.
+- Pace campaign values report requests sequentially; Klaviyo's steady limit is low enough that concurrent
+  daily requests will create avoidable 429 responses.
 - Do not send `page[size]` to campaign-scoped tag relationship fallback endpoints because Klaviyo rejects
   that query on those resources.
 - Treat campaign tag fallback and campaign-audience relationship-map failures as non-fatal sanitized
   warnings after bounded retries. Core campaign fetch failures should still fail the Klaviyo region clearly.
+- Treat campaign performance report failures as sanitized warnings so metadata rows can still sync.
 - Never log raw payloads, customer PII, auth headers, API keys, push tokens, subscription details, or event properties.
 
 ### Vercel Cron
@@ -59,7 +67,7 @@ Recommended protection:
 - Cap date range to 90 days.
 - Block a new manual sync if another sync is already running.
 - In production, add a per-user or global cooldown such as one manual sync every 5 minutes.
-- Add separate cooldowns or background jobs before expanding beyond the current Klaviyo campaign metadata slice.
+- Add separate cooldowns or background jobs before expanding beyond the current Klaviyo campaign slice.
 
 ### `GET /api/cron/hourly-sync`
 

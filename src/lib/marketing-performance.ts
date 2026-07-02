@@ -51,13 +51,35 @@ function getMetricValue(summary: KlaviyoPerformanceSummary, metric: KlaviyoPerfo
   return summary[metric];
 }
 
+function hasNativeCampaignMetrics(row: KlaviyoPerformanceRow): row is RankedCampaign {
+  return "delivered_count" in row;
+}
+
+function getEngagementDenominator(row: KlaviyoPerformanceRow) {
+  return hasNativeCampaignMetrics(row) ? row.delivered_count || row.recipients_count : row.recipients_count;
+}
+
+function getOpenRecipientCount(row: KlaviyoPerformanceRow) {
+  return hasNativeCampaignMetrics(row) ? row.opens_unique_count || row.opens_count : row.opens_count;
+}
+
+function getClickRecipientCount(row: KlaviyoPerformanceRow) {
+  return hasNativeCampaignMetrics(row) ? row.clicks_unique_count || row.clicks_count : row.clicks_count;
+}
+
+function getConversionRecipientCount(row: KlaviyoPerformanceRow) {
+  return hasNativeCampaignMetrics(row)
+    ? row.conversions_unique_count || row.conversions_count
+    : row.conversions_count;
+}
+
 export function summarizeKlaviyoPerformanceRows(rows: KlaviyoPerformanceRow[]): KlaviyoPerformanceSummary {
   const totals = rows.reduce(
     (runningTotals, row) => ({
-      recipients: runningTotals.recipients + row.recipients_count,
-      opens: runningTotals.opens + row.opens_count,
-      clicks: runningTotals.clicks + row.clicks_count,
-      conversions: runningTotals.conversions + row.conversions_count,
+      recipients: runningTotals.recipients + getEngagementDenominator(row),
+      opens: runningTotals.opens + getOpenRecipientCount(row),
+      clicks: runningTotals.clicks + getClickRecipientCount(row),
+      conversions: runningTotals.conversions + getConversionRecipientCount(row),
       revenue: runningTotals.revenue + row.revenue_amount,
     }),
     {
@@ -152,12 +174,28 @@ export function getPresetLabel(preset: string) {
     return "last 7 days";
   }
 
+  if (preset === "last90") {
+    return "last 90 days";
+  }
+
   if (preset === "thisMonth") {
     return "this month";
   }
 
   if (preset === "lastMonth") {
     return "last month";
+  }
+
+  if (preset === "yearToDate") {
+    return "year-to-date";
+  }
+
+  if (preset === "lastYear") {
+    return "last year";
+  }
+
+  if (preset === "allTime") {
+    return "all time";
   }
 
   if (preset === "custom") {

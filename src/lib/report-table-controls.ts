@@ -115,6 +115,14 @@ function getKlaviyoDate(row: RankedCampaign | RankedFlow) {
   return "send_date" in row ? row.send_date : row.metric_date;
 }
 
+function isCampaignRow(row: RankedCampaign | RankedFlow): row is RankedCampaign {
+  return "delivered_count" in row;
+}
+
+function hasEngagementDenominator(row: RankedCampaign | RankedFlow) {
+  return isCampaignRow(row) ? Boolean(row.delivered_count || row.recipients_count) : row.recipients_count > 0;
+}
+
 export function getTableControlFieldNames(scope: string): TableControlFieldNames {
   return {
     query: `${scope}Q`,
@@ -254,7 +262,7 @@ export function filterAndSortKlaviyoSimpleRows<T extends RankedCampaign | Ranked
       }
 
       if (state.filter === "low_click_rate") {
-        return row.recipients_count > 0 && row.clickRate < 0.02;
+        return hasEngagementDenominator(row) && row.clickRate < 0.02;
       }
 
       if (state.filter === "high_revenue_density") {

@@ -52,10 +52,18 @@ function campaignMetadataToReportRow({
     campaign_name: campaign.name,
     send_date: campaignMetadataDate(campaign),
     recipients_count: 0,
+    delivered_count: 0,
     opens_count: 0,
+    opens_unique_count: 0,
+    open_rate: 0,
     clicks_count: 0,
+    clicks_unique_count: 0,
+    click_rate: 0,
     conversions_count: 0,
+    conversions_unique_count: 0,
+    conversion_rate: 0,
     revenue_amount: 0,
+    revenue_per_recipient: 0,
     currency_code: currencyCode,
   };
 }
@@ -160,6 +168,9 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
 
   const regionCurrencyById = new Map(regions.map((region) => [region.id, region.currency_code]));
   const reportCampaignRows = (campaignResult.data || []) as KlaviyoCampaignReport[];
+  const reportCampaignKeys = new Set(
+    reportCampaignRows.map((campaign) => `${campaign.region_id}:${campaign.campaign_id}`),
+  );
   const metadataCampaignRows = ((campaignMetadataResult.data || []) as KlaviyoCampaign[])
     .map((campaign) =>
       campaignMetadataToReportRow({
@@ -168,7 +179,10 @@ export async function getDashboardData(filters: DashboardFilters): Promise<Dashb
       }),
     )
     .filter((campaign) => campaign.send_date >= filters.startDate && campaign.send_date <= filters.endDate);
-  const campaignRows = reportCampaignRows.length ? reportCampaignRows : metadataCampaignRows;
+  const campaignRows = [
+    ...reportCampaignRows,
+    ...metadataCampaignRows.filter((campaign) => !reportCampaignKeys.has(`${campaign.region_id}:${campaign.campaign_id}`)),
+  ];
 
   return buildDashboardDataFromRows({
     filters,

@@ -57,10 +57,18 @@ export type KlaviyoCampaignReport = {
   campaign_name: string;
   send_date: string;
   recipients_count: number;
+  delivered_count: number;
   opens_count: number;
+  opens_unique_count: number;
+  open_rate: number;
   clicks_count: number;
+  clicks_unique_count: number;
+  click_rate: number;
   conversions_count: number;
+  conversions_unique_count: number;
+  conversion_rate: number;
   revenue_amount: number;
+  revenue_per_recipient: number;
   currency_code: string;
 };
 
@@ -166,6 +174,11 @@ export type KlaviyoTagRelationship = {
   target_id: string;
 };
 
+export type KlaviyoFilterOption = {
+  value: string;
+  label: string;
+};
+
 export type KlaviyoCampaign = {
   id: string;
   region_id: string;
@@ -183,6 +196,11 @@ export type KlaviyoCampaign = {
   send_at: string | null;
   search_text: string;
   a_b_test?: Record<string, unknown>;
+};
+
+export type KlaviyoCampaignMetadata = KlaviyoCampaign & {
+  tag_filter_options?: KlaviyoFilterOption[];
+  audience_filter_options?: KlaviyoFilterOption[];
 };
 
 export type KlaviyoFlow = {

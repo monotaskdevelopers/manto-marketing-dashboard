@@ -1,8 +1,8 @@
 /*
 File description:
-This file contains the server-only Klaviyo account helper that remains while Klaviyo ingestion is being
-rebuilt. It only performs Settings-time conversion metric detection through Klaviyo's Metrics API, keeps
-retry/error handling bounded, and avoids logging API keys, raw payloads, profile data, or event data.
+This file contains server-only Klaviyo account helpers used by Settings and campaign sync. It detects the
+preferred conversion metric through Klaviyo's Metrics API, keeps retry/error handling bounded, and avoids
+logging API keys, raw payloads, profile data, or event data.
 */
 
 import "server-only";
@@ -145,7 +145,7 @@ async function klaviyoGetRequest(params: {
     });
 
     if (response.status === 401 || response.status === 403) {
-      console.warn(`[settings:klaviyo] ${params.label} unauthorized for region ${params.regionSlug}.`);
+      console.warn(`[klaviyo:metrics] ${params.label} unauthorized for region ${params.regionSlug}.`);
       throw new Error(params.authorizationErrorMessage);
     }
 
@@ -157,7 +157,7 @@ async function klaviyoGetRequest(params: {
 
       if (attempt < maxAttempts) {
         console.warn(
-          `[settings:klaviyo] ${params.label} rate limited for region ${params.regionSlug}; retrying attempt ${
+          `[klaviyo:metrics] ${params.label} rate limited for region ${params.regionSlug}; retrying attempt ${
             attempt + 1
           }/${maxAttempts} after ${retryDelayMs}ms.`,
         );
@@ -165,7 +165,7 @@ async function klaviyoGetRequest(params: {
         continue;
       }
 
-      console.warn(`[settings:klaviyo] ${params.label} rate limited for region ${params.regionSlug}; retries exhausted.`);
+      console.warn(`[klaviyo:metrics] ${params.label} rate limited for region ${params.regionSlug}; retries exhausted.`);
       throw new Error(params.rateLimitErrorMessage);
     }
 
@@ -174,7 +174,7 @@ async function klaviyoGetRequest(params: {
       const summary = summarizeKlaviyoErrors(parseJsonText(responseText), responseText);
 
       console.warn(
-        `[settings:klaviyo] ${params.label} failed for region ${params.regionSlug}: ${response.status}. ${summary}`,
+        `[klaviyo:metrics] ${params.label} failed for region ${params.regionSlug}: ${response.status}. ${summary}`,
       );
       throw new Error(`Unable to fetch ${params.label.toLowerCase()} for region ${params.regionSlug}. ${summary}`);
     }
@@ -235,7 +235,7 @@ export async function fetchPreferredKlaviyoConversionMetricId(params: {
   let nextPath: string | null = "metrics?fields[metric]=id,name,integration";
   let pageCount = 0;
 
-  // Settings should stay responsive, so metric detection samples a few pages instead of crawling the account.
+  // Keep this lookup bounded because it runs in both Settings and campaign sync paths.
   while (nextPath && pageCount < 5) {
     const payload = await klaviyoGetRequest({
       privateKey: params.privateKey,
@@ -264,12 +264,12 @@ export async function fetchPreferredKlaviyoConversionMetricId(params: {
     .sort((left, right) => right.score - left.score)[0]?.metric;
 
   if (!bestMetric) {
-    console.warn(`[settings:klaviyo] No revenue conversion metric detected for region ${params.regionSlug}.`);
+    console.warn(`[klaviyo:metrics] No revenue conversion metric detected for region ${params.regionSlug}.`);
     return null;
   }
 
   console.info(
-    `[settings:klaviyo] Detected conversion metric "${bestMetric.name}" for region ${params.regionSlug}.`,
+    `[klaviyo:metrics] Detected conversion metric "${bestMetric.name}" for region ${params.regionSlug}.`,
   );
 
   return bestMetric.id;

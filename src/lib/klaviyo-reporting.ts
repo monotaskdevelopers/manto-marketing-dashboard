@@ -76,6 +76,26 @@ function getRowDate(row: KlaviyoReportRow) {
   return "send_date" in row ? row.send_date : row.metric_date;
 }
 
+function isCampaignRow(row: KlaviyoReportRow): row is RankedCampaign {
+  return "delivered_count" in row;
+}
+
+function getEngagementDenominator(row: KlaviyoReportRow) {
+  return isCampaignRow(row) ? row.delivered_count || row.recipients_count : row.recipients_count;
+}
+
+function getOpenRecipientCount(row: KlaviyoReportRow) {
+  return isCampaignRow(row) ? row.opens_unique_count || row.opens_count : row.opens_count;
+}
+
+function getClickRecipientCount(row: KlaviyoReportRow) {
+  return isCampaignRow(row) ? row.clicks_unique_count || row.clicks_count : row.clicks_count;
+}
+
+function getConversionRecipientCount(row: KlaviyoReportRow) {
+  return isCampaignRow(row) ? row.conversions_unique_count || row.conversions_count : row.conversions_count;
+}
+
 function compareText(left: string, right: string) {
   return left.localeCompare(right, "en", { sensitivity: "base" });
 }
@@ -170,10 +190,10 @@ export function summarizeKlaviyoRows(rows: KlaviyoReportRow[]) {
   return rows.reduce(
     (summary, row) => {
       summary.revenue += row.revenue_amount;
-      summary.recipients += row.recipients_count;
-      summary.opens += row.opens_count;
-      summary.clicks += row.clicks_count;
-      summary.conversions += row.conversions_count;
+      summary.recipients += getEngagementDenominator(row);
+      summary.opens += getOpenRecipientCount(row);
+      summary.clicks += getClickRecipientCount(row);
+      summary.conversions += getConversionRecipientCount(row);
       return summary;
     },
     {

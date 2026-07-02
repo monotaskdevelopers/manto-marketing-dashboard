@@ -22,7 +22,8 @@ Klaviyo platform connections without editing environment JSON.
 - Multi-step Klaviyo setup modal.
 - Provider-specific save forms for region metadata and platform credentials.
 - Timezone dropdown for region timezone selection.
-- Klaviyo read-scope guidance for the current campaign, campaign-audience, and campaign-tag sync.
+- Klaviyo read-scope guidance for the current campaign performance, campaign, campaign-audience, and
+  campaign-tag sync.
 - Disconnect controls for Shopify and Klaviyo.
 - Region deactivation control.
 
@@ -34,8 +35,8 @@ Klaviyo platform connections without editing environment JSON.
 - Guides users through each provider setup in a focused popup modal before showing the save form.
 - Validates timezone values as IANA timezones and gives users a dropdown instead of free text.
 - Uses shared pill-shaped buttons, styled native inputs, and a custom-styled timezone dropdown wrapper.
-- Explains that the active Klaviyo sync is limited to campaigns, campaign status, campaign audiences, and
-  campaign tags.
+- Explains that the active Klaviyo sync is limited to campaigns, campaign performance, campaign status,
+  campaign audiences, and campaign tags.
 - Never shows saved secrets back to the browser.
 - Lets non-developer operators manage connections safely.
 - Keeps historical reporting rows when a platform or region is disconnected.

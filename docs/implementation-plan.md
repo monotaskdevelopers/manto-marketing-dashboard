@@ -50,7 +50,7 @@ If the team needs fresher numbers before the next hourly sync, they can click a 
 - Create `klaviyo_daily_metrics` for daily Klaviyo rollups.
 - Create `klaviyo_campaign_reports` for campaign table rows.
 - Create `klaviyo_flow_reports` for flow table rows.
-- Create Klaviyo tables for the current campaign metadata slice and keep broader historical tables available
+- Create Klaviyo tables for the current campaign slice and keep broader historical tables available
   for future scoped ingestion work.
 - Add indexes for date range and region filters.
 - Add search, status, relationship, and JSONB indexes for Klaviyo reporting tables.
@@ -73,10 +73,10 @@ If the team needs fresher numbers before the next hourly sync, they can click a 
 - Add computed metrics:
   - AOV = Shopify revenue / Shopify orders.
   - Klaviyo share = Klaviyo attributed revenue / Shopify revenue.
-  - Revenue per recipient = attributed revenue / recipients.
-  - Open rate = opens / recipients.
-  - Click rate = clicks / recipients.
-  - Conversion rate = conversions / recipients.
+  - Campaign revenue per recipient = Klaviyo `revenue_per_recipient` when present, otherwise revenue / delivered recipients.
+  - Campaign open rate = Klaviyo `open_rate` when present, otherwise unique opens / delivered recipients.
+  - Campaign click rate = Klaviyo `click_rate` when present, otherwise unique clicks / delivered recipients.
+  - Campaign conversion rate = Klaviyo `conversion_rate` when present, otherwise unique conversions / delivered recipients.
 
 ### Phase 6: External Connectors
 
@@ -89,9 +89,9 @@ If the team needs fresher numbers before the next hourly sync, they can click a 
 
 - Build Klaviyo client:
   - Uses region Klaviyo private key.
-  - Fetches only campaigns, campaign status, campaign audiences, campaign tags, and campaign tag IDs for the
-    active Campaigns table slice.
-  - Upserts campaign metadata rows with deterministic conflict keys.
+  - Fetches only campaigns, campaign performance, campaign status, campaign audiences, campaign tags, and
+    campaign tag IDs for the active Campaigns table slice.
+  - Upserts campaign report and metadata rows with deterministic conflict keys.
   - Handles rate-limit responses with clear retries and sanitized optional-detail warnings.
 
 ### Phase 7: Sync Orchestration

@@ -20,8 +20,8 @@ whenever a new risk is identified, resolved, accepted, or moved into the product
 - Store Shopify and Klaviyo secrets encrypted in `platform_connections`, not in JSON env config.
 - Keep `APP_ENCRYPTION_KEY` server-only and outside Supabase.
 - Create bootstrap users only through trusted server-side admin tooling.
-- Store active Klaviyo campaign, campaign-audience, campaign-tag, and raw campaign/tag/audience resources
-  only in authenticated, RLS-protected Supabase tables.
+- Store active Klaviyo campaign report, campaign, campaign-audience, campaign-tag, and raw
+  campaign/tag/audience resources only in authenticated, RLS-protected Supabase tables.
 - Never log Klaviyo raw payloads, auth headers, private keys, or recipient/customer data.
 
 ## Known Risks
@@ -101,8 +101,8 @@ Risk:
 - Historical migrations include tables capable of storing recipient emails, phone numbers, names, locations,
   subscriptions, properties, audience memberships, event properties, campaign message metadata, flow action
   metadata, flow message metadata, broad raw resource snapshots, and raw Klaviyo payloads.
-- The active Klaviyo sync no longer fills those broader profile/event/flow/reporting datasets, but they
-  remain sensitive if future ingestion slices populate them.
+- The active Klaviyo sync fills only campaign reporting and metadata tables, but broader profile/event/flow
+  datasets remain sensitive if future ingestion slices populate them.
 - Any authenticated internal user can currently read Klaviyo reporting tables under the MVP access model.
 
 Mitigation:

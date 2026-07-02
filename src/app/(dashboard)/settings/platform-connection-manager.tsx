@@ -127,6 +127,7 @@ const guideSteps: Record<Provider, GuideStep[]> = {
         "Grant campaign read access so the sync can fetch campaigns and campaign status.",
         "Grant tag read access so the sync can fetch campaign tags and campaign tag IDs.",
         "Grant campaign audience beta/read access if Klaviyo exposes it for this account.",
+        "Grant metrics and campaign values report read access so the sync can fill open rate, click rate, conversions, and revenue.",
       ],
     },
     {
@@ -452,8 +453,9 @@ function ConnectionFormFields({
             />
           </Field>
           <div className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm leading-6 text-teal-800">
-            The current Klaviyo sync fetches only campaigns, campaign status, campaign audiences, and
-            campaign tags after saving when the private key includes the needed read scopes.
+            The current Klaviyo sync fetches only campaigns, campaign performance, campaign status,
+            campaign audiences, and campaign tags after saving when the private key includes the needed read
+            scopes.
           </div>
           <Field label="Klaviyo private key" className="md:col-span-2">
             <TextControl

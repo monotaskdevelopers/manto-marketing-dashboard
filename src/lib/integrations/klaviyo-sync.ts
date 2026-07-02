@@ -1,13 +1,15 @@
 /*
 File description:
-This file contains the narrow server-only Klaviyo campaign metadata sync. It intentionally fetches only
-campaigns, campaign audiences, campaign tags, and campaign status because that is the current product scope.
-It logs each stage with sanitized endpoint/error context so operators can see exactly where a sync failed.
+This file contains the narrow server-only Klaviyo campaign sync. It intentionally fetches only campaigns,
+campaign performance, campaign audiences, campaign tags, and campaign status because that is the current
+product scope. It logs each stage with sanitized endpoint/error context so operators can see exactly where a
+sync failed.
 */
 
 import "server-only";
 
 import { getKlaviyoRevision } from "@/lib/env";
+import { fetchPreferredKlaviyoConversionMetricId } from "@/lib/integrations/klaviyo";
 import type { RegionIntegrationConfig } from "@/lib/types";
 
 type KlaviyoJson = Record<string, unknown>;
@@ -39,7 +41,30 @@ type CampaignAudiences = {
   endpointPaths: string[];
 };
 
+type KlaviyoReportRow = {
+  objectId: string;
+  objectName: string;
+  metricDate: string;
+  recipients: number;
+  delivered: number;
+  opens: number;
+  opensUnique: number;
+  openRate: number;
+  clicks: number;
+  clicksUnique: number;
+  clickRate: number;
+  conversions: number;
+  conversionsUnique: number;
+  conversionRate: number;
+  revenue: number;
+  revenuePerRecipient: number;
+  unsubscribes: number;
+  bounced: number;
+  spamComplaints: number;
+};
+
 type KlaviyoSyncRows = {
+  campaignReportRows: Record<string, unknown>[];
   tagRows: Record<string, unknown>[];
   tagRelationshipRows: Record<string, unknown>[];
   campaignRows: Record<string, unknown>[];
@@ -75,6 +100,26 @@ const campaignPageSize = 100;
 const relationshipPageSize = 50;
 const standardPageLimit = 50;
 const perCampaignConcurrency = 1;
+const campaignReportRequestDelayMs = 31_000;
+const reportStatistics = [
+  "recipients",
+  "delivered",
+  "opens",
+  "opens_unique",
+  "open_rate",
+  "clicks",
+  "clicks_unique",
+  "click_rate",
+  "conversions",
+  "conversion_uniques",
+  "conversion_rate",
+  "conversion_value",
+  "revenue_per_recipient",
+  "unsubscribes",
+  "unsubscribe_uniques",
+  "bounced",
+  "spam_complaints",
+];
 
 function getKlaviyoBetaRevision() {
   const revision = getKlaviyoRevision();
@@ -83,6 +128,7 @@ function getKlaviyoBetaRevision() {
 
 function makeEmptyRows(): KlaviyoSyncRows {
   return {
+    campaignReportRows: [],
     tagRows: [],
     tagRelationshipRows: [],
     campaignRows: [],
@@ -155,6 +201,28 @@ function readDate(source: KlaviyoJson, keys: string[]) {
   }
 
   return null;
+}
+
+function toDateOnly(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(dateString: string, days: number) {
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toDateOnly(date);
+}
+
+function datesInRange(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  let currentDate = startDate;
+
+  while (currentDate <= endDate) {
+    dates.push(currentDate);
+    currentDate = addDays(currentDate, 1);
+  }
+
+  return dates;
 }
 
 function uniqueStrings(values: Array<string | null | undefined>) {
@@ -274,20 +342,24 @@ function getKlaviyoRetryDelayMs(response: Response, responseText: string, attemp
 async function klaviyoRequest(params: KlaviyoClientParams & {
   path: string;
   label: string;
+  method?: "GET" | "POST";
+  body?: KlaviyoJson;
   revision?: string;
 }) {
   const maxAttempts = 6;
   const revision = params.revision || getKlaviyoRevision();
+  const method = params.method || "GET";
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const response = await fetch(`https://a.klaviyo.com/api/${params.path}`, {
-      method: "GET",
+      method,
       headers: {
         Authorization: `Klaviyo-API-Key ${params.privateKey}`,
         Accept: "application/vnd.api+json",
         "Content-Type": "application/vnd.api+json",
         revision,
       },
+      body: params.body ? JSON.stringify(params.body) : undefined,
     });
 
     if (!response.ok) {
@@ -307,7 +379,7 @@ async function klaviyoRequest(params: KlaviyoClientParams & {
       }
 
       console.warn(
-        `[sync:klaviyo] ${params.label} request failed for region ${params.regionSlug}: GET ${
+        `[sync:klaviyo] ${params.label} request failed for region ${params.regionSlug}: ${method} ${
           params.path
         } revision=${revision} status=${response.status}. ${summary}`,
       );
@@ -479,6 +551,236 @@ function hasRelationship(resource: KlaviyoResourceObject, relationshipNames: str
   return relationshipNames.some((relationshipName) => Object.prototype.hasOwnProperty.call(relationships, relationshipName));
 }
 
+function resourceNameById(resources: KlaviyoResourceObject[]) {
+  return new Map(
+    resources.flatMap((resource) => {
+      const id = resource.id;
+      const name = readString(resource.attributes || {}, ["name"]);
+
+      return id ? [[id, name || id] as const] : [];
+    }),
+  );
+}
+
+function getStatisticNumber(statistics: KlaviyoJson, keys: string[]) {
+  for (const key of keys) {
+    const value = statistics[key];
+
+    if (Array.isArray(value)) {
+      return value.reduce((total, item) => {
+        const numberValue = typeof item === "number" ? item : Number(item);
+        return total + (Number.isFinite(numberValue) ? numberValue : 0);
+      }, 0);
+    }
+
+    const numberValue = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+
+    if (Number.isFinite(numberValue)) {
+      return numberValue;
+    }
+  }
+
+  return 0;
+}
+
+function safeRatio(numerator: number, denominator: number) {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+function normalizeRate(value: number) {
+  return Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
+function deriveReportRates(row: KlaviyoReportRow) {
+  const denominator = row.delivered || row.recipients;
+
+  // Klaviyo campaign-list rates are based on unique recipient actions over delivered recipients. Recompute
+  // collapsed rows from those same building blocks so multi-message campaigns do not sum rate percentages.
+  row.openRate = row.openRate || safeRatio(row.opensUnique, denominator);
+  row.clickRate = row.clickRate || safeRatio(row.clicksUnique, denominator);
+  row.conversionRate = row.conversionRate || safeRatio(row.conversionsUnique || row.conversions, denominator);
+  row.revenuePerRecipient = row.revenuePerRecipient || safeRatio(row.revenue, denominator);
+
+  return row;
+}
+
+function parseReportPayload(params: {
+  payload: KlaviyoJson;
+  objectIdKeys: string[];
+  objectNameById: Map<string, string>;
+  metricDate: string;
+}) {
+  const data = Array.isArray(params.payload.data) ? params.payload.data : [params.payload.data].filter(Boolean);
+
+  return data.flatMap((item): KlaviyoReportRow[] => {
+    const resource = asRecord(item);
+    const attributes = asRecord(resource.attributes);
+    const results = asArray(attributes.results);
+
+    return results.flatMap((result) => {
+      const resultRecord = asRecord(result);
+      const resultAttributes = asRecord(resultRecord.attributes || resultRecord);
+      const groupings = asRecord(resultAttributes.groupings);
+      const statistics = asRecord(resultAttributes.statistics);
+      const objectId = readString(groupings, params.objectIdKeys);
+
+      if (!objectId) {
+        return [];
+      }
+
+      return [
+        {
+          objectId,
+          objectName: params.objectNameById.get(objectId) || objectId,
+          metricDate: params.metricDate,
+          recipients: getStatisticNumber(statistics, ["recipients"]),
+          delivered: getStatisticNumber(statistics, ["delivered"]),
+          opens: getStatisticNumber(statistics, ["opens"]),
+          opensUnique: getStatisticNumber(statistics, ["opens_unique"]),
+          openRate: normalizeRate(getStatisticNumber(statistics, ["open_rate"])),
+          clicks: getStatisticNumber(statistics, ["clicks"]),
+          clicksUnique: getStatisticNumber(statistics, ["clicks_unique"]),
+          clickRate: normalizeRate(getStatisticNumber(statistics, ["click_rate"])),
+          conversions: getStatisticNumber(statistics, ["conversions"]),
+          conversionsUnique: getStatisticNumber(statistics, ["conversion_uniques"]),
+          conversionRate: normalizeRate(getStatisticNumber(statistics, ["conversion_rate"])),
+          revenue: getStatisticNumber(statistics, ["conversion_value", "revenue", "value"]),
+          revenuePerRecipient: normalizeRate(getStatisticNumber(statistics, ["revenue_per_recipient"])),
+          unsubscribes: getStatisticNumber(statistics, ["unsubscribes"]),
+          bounced: getStatisticNumber(statistics, ["bounced", "bounces"]),
+          spamComplaints: getStatisticNumber(statistics, ["spam_complaints", "spam_complaint"]),
+        },
+      ];
+    });
+  });
+}
+
+async function fetchKlaviyoCampaignValueReportForDay(params: KlaviyoClientParams & {
+  metricDate: string;
+  conversionMetricId: string;
+  objectNameById: Map<string, string>;
+}) {
+  const nextDate = addDays(params.metricDate, 1);
+
+  console.info(
+    `[sync:klaviyo] Fetching daily campaign performance report for region ${params.regionSlug}: ${params.metricDate}.`,
+  );
+
+  const payload = await klaviyoRequest({
+    privateKey: params.privateKey,
+    regionSlug: params.regionSlug,
+    method: "POST",
+    path: "campaign-values-reports",
+    label: "Campaign values report",
+    body: {
+      data: {
+        type: "campaign-values-report",
+        attributes: {
+          timeframe: {
+            start: `${params.metricDate}T00:00:00+00:00`,
+            end: `${nextDate}T00:00:00+00:00`,
+          },
+          conversion_metric_id: params.conversionMetricId,
+          statistics: reportStatistics,
+          group_by: ["campaign_id", "campaign_message_id", "send_channel"],
+        },
+      },
+    },
+  });
+
+  const rows = parseReportPayload({
+    payload,
+    objectIdKeys: ["campaign_id", "campaign"],
+    objectNameById: params.objectNameById,
+    metricDate: params.metricDate,
+  });
+
+  console.info(
+    `[sync:klaviyo] Daily campaign performance report returned ${rows.length} grouped row(s) for region ${params.regionSlug} on ${params.metricDate}.`,
+  );
+
+  return rows;
+}
+
+async function fetchKlaviyoDailyCampaignValueReports(params: KlaviyoClientParams & {
+  startDate: string;
+  endDate: string;
+  conversionMetricId: string;
+  objectNameById: Map<string, string>;
+  warnings: string[];
+}) {
+  const dates = datesInRange(params.startDate, params.endDate);
+  const rows: KlaviyoReportRow[] = [];
+
+  console.info(
+    `[sync:klaviyo] Fetching ${dates.length} daily campaign performance report request(s) for region ${params.regionSlug}: ${params.startDate} to ${params.endDate}.`,
+  );
+
+  for (let index = 0; index < dates.length; index += 1) {
+    const metricDate = dates[index];
+
+    if (index > 0) {
+      // Klaviyo campaign values reports are capped at a steady 2 requests/minute, so keep this loop paced
+      // instead of creating avoidable 429 retries during larger historical sync windows.
+      await wait(campaignReportRequestDelayMs);
+    }
+
+    try {
+      rows.push(
+        ...(await fetchKlaviyoCampaignValueReportForDay({
+          privateKey: params.privateKey,
+          regionSlug: params.regionSlug,
+          metricDate,
+          conversionMetricId: params.conversionMetricId,
+          objectNameById: params.objectNameById,
+        })),
+      );
+    } catch (error) {
+      const warning = `Campaign performance ${metricDate}: ${sanitizeLogText(error instanceof Error ? error.message : "Unknown report error")}`;
+
+      params.warnings.push(warning);
+      console.warn(
+        `[sync:klaviyo] Continuing without daily campaign performance rows for region ${params.regionSlug} on ${metricDate}. ${warning}`,
+      );
+    }
+  }
+
+  return rows;
+}
+
+function collapseReportRows(rows: KlaviyoReportRow[]) {
+  const rowsByKey = new Map<string, KlaviyoReportRow>();
+
+  rows.forEach((row) => {
+    const key = `${row.objectId}:${row.metricDate}`;
+    const existing = rowsByKey.get(key);
+
+    if (!existing) {
+      rowsByKey.set(key, { ...row });
+      return;
+    }
+
+    existing.recipients += row.recipients;
+    existing.delivered += row.delivered;
+    existing.opens += row.opens;
+    existing.opensUnique += row.opensUnique;
+    existing.openRate = 0;
+    existing.clicks += row.clicks;
+    existing.clicksUnique += row.clicksUnique;
+    existing.clickRate = 0;
+    existing.conversions += row.conversions;
+    existing.conversionsUnique += row.conversionsUnique;
+    existing.conversionRate = 0;
+    existing.revenue += row.revenue;
+    existing.revenuePerRecipient = 0;
+    existing.unsubscribes += row.unsubscribes;
+    existing.bounced += row.bounced;
+    existing.spamComplaints += row.spamComplaints;
+  });
+
+  return Array.from(rowsByKey.values()).map(deriveReportRates);
+}
+
 function inferCampaignChannels(campaign: KlaviyoResourceObject) {
   const attributes = campaign.attributes || {};
   const relationshipText = relationshipItems(campaign)
@@ -493,6 +795,36 @@ function inferCampaignChannels(campaign: KlaviyoResourceObject) {
     relationshipText.includes("mobile_push") || relationshipText.includes("push") ? "mobile_push" : "",
     relationshipText.includes("email") ? "email" : "",
   ]);
+}
+
+async function resolveConversionMetricId(rows: KlaviyoSyncRows, params: {
+  privateKey: string;
+  regionSlug: string;
+  configuredMetricId?: string;
+}) {
+  if (params.configuredMetricId) {
+    return params.configuredMetricId;
+  }
+
+  try {
+    const detectedMetricId = await fetchPreferredKlaviyoConversionMetricId({
+      privateKey: params.privateKey,
+      regionSlug: params.regionSlug,
+    });
+
+    if (detectedMetricId) {
+      return detectedMetricId;
+    }
+  } catch (error) {
+    rows.warnings.push(
+      `Campaign performance metric detection: ${sanitizeLogText(error instanceof Error ? error.message : "Unknown metric lookup error")}`,
+    );
+  }
+
+  rows.warnings.push(
+    "Campaign performance rows were skipped because no Klaviyo conversion metric ID is configured or detectable.",
+  );
+  return null;
 }
 
 function campaignToRow(params: {
@@ -860,12 +1192,13 @@ export async function fetchKlaviyoSyncRows(params: {
   };
 
   console.info(
-    `[sync:klaviyo] Region ${params.region.slug} campaign metadata sync started for run ${params.syncRunId}. Scope=campaigns,campaign-audiences,campaign-tags,campaign-status.`,
+    `[sync:klaviyo] Region ${params.region.slug} campaign sync started for run ${params.syncRunId}. Scope=campaigns,campaign-performance,campaign-audiences,campaign-tags,campaign-status.`,
   );
 
   const { campaigns, includedTags, endpointPath } = await fetchCampaigns(rows, client);
   const includedTagsById = new Map(includedTags.flatMap((tag) => (tag.id ? [[tag.id, tag] as const] : [])));
   const audienceByCampaignId = await fetchCampaignAudienceMap(rows, client);
+  const campaignNameById = resourceNameById(campaigns);
 
   console.info(
     `[sync:klaviyo] Resolving campaign tags and audiences for ${campaigns.length} campaign(s) in region ${params.region.slug} with concurrency ${perCampaignConcurrency}.`,
@@ -974,8 +1307,65 @@ export async function fetchKlaviyoSyncRows(params: {
     );
   });
 
+  const conversionMetricId = await resolveConversionMetricId(rows, {
+    privateKey: params.region.klaviyoPrivateKey,
+    regionSlug: params.region.slug,
+    configuredMetricId: params.region.klaviyoConversionMetricId,
+  });
+
+  if (conversionMetricId) {
+    try {
+      const reportRows = collapseReportRows(
+        await fetchKlaviyoDailyCampaignValueReports({
+          ...client,
+          startDate: params.startDate,
+          endDate: params.endDate,
+          conversionMetricId,
+          objectNameById: campaignNameById,
+          warnings: rows.warnings,
+        }),
+      ).filter((row) => row.metricDate >= params.startDate && row.metricDate <= params.endDate);
+
+      rows.campaignReportRows.push(
+        ...reportRows.map((row) => ({
+          region_id: params.regionId,
+          campaign_id: row.objectId,
+          campaign_name: row.objectName,
+          send_date: row.metricDate,
+          recipients_count: Math.trunc(row.recipients),
+          delivered_count: Math.trunc(row.delivered),
+          opens_count: Math.trunc(row.opens),
+          opens_unique_count: Math.trunc(row.opensUnique || row.opens),
+          open_rate: row.openRate,
+          clicks_count: Math.trunc(row.clicks),
+          clicks_unique_count: Math.trunc(row.clicksUnique || row.clicks),
+          click_rate: row.clickRate,
+          conversions_count: Math.trunc(row.conversionsUnique || row.conversions),
+          conversions_unique_count: Math.trunc(row.conversionsUnique || row.conversions),
+          conversion_rate: row.conversionRate,
+          revenue_amount: row.revenue,
+          revenue_per_recipient: row.revenuePerRecipient,
+          currency_code: params.region.currencyCode,
+          updated_at: new Date().toISOString(),
+        })),
+      );
+
+      console.info(
+        `[sync:klaviyo] Campaign performance sync produced ${rows.campaignReportRows.length} report row(s) for region ${params.region.slug}.`,
+      );
+    } catch (error) {
+      const warning = `Campaign performance: ${sanitizeLogText(error instanceof Error ? error.message : "Unknown report error")}`;
+
+      rows.warnings.push(warning);
+      console.warn(
+        `[sync:klaviyo] Continuing without campaign performance rows for region ${params.region.slug}. ${warning}`,
+      );
+    }
+  }
+
   rows.tagRows = dedupeRows(rows.tagRows, ["region_id", "tag_id"]);
   rows.tagRelationshipRows = dedupeRows(rows.tagRelationshipRows, ["region_id", "tag_id", "target_type", "target_id"]);
+  rows.campaignReportRows = dedupeRows(rows.campaignReportRows, ["region_id", "campaign_id", "send_date"]);
   rows.campaignAudienceRows = dedupeRows(rows.campaignAudienceRows, [
     "region_id",
     "campaign_id",
@@ -987,7 +1377,7 @@ export async function fetchKlaviyoSyncRows(params: {
   rows.rawResourceRows = dedupeRows(rows.rawResourceRows, ["region_id", "resource_family", "resource_type", "resource_id"]);
 
   console.info(
-    `[sync:klaviyo] Region ${params.region.slug} campaign metadata sync produced ${rows.campaignRows.length} campaign row(s), ${rows.campaignAudienceRows.length} campaign audience row(s), ${rows.tagRows.length} tag row(s), ${rows.tagRelationshipRows.length} campaign tag relationship row(s), and ${rows.rawResourceRows.length} raw campaign resource row(s) for run ${params.syncRunId}.`,
+    `[sync:klaviyo] Region ${params.region.slug} campaign sync produced ${rows.campaignRows.length} campaign row(s), ${rows.campaignReportRows.length} campaign report row(s), ${rows.campaignAudienceRows.length} campaign audience row(s), ${rows.tagRows.length} tag row(s), ${rows.tagRelationshipRows.length} campaign tag relationship row(s), and ${rows.rawResourceRows.length} raw campaign resource row(s) for run ${params.syncRunId}.`,
   );
 
   return rows;

@@ -15,9 +15,9 @@ behavior.
 | Manual sync range cap | `src/app/api/sync/route.ts` | Prevents excessive manual sync windows. | Keep and tune based on real usage. |
 | Settings credential entry | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Lets local/staging users connect Shopify and Klaviyo credentials separately through guided modals. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
 | Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings`, `/campaigns`, `/klaviyo/campaigns`, `/flows`, and `/klaviyo/flows` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
-| Campaigns placeholder actions | `/src/app/(dashboard)/campaigns/page.tsx` | Keeps Klaviyo-style controls for library, calendar, benchmarks, Placed Order selector, display settings, and row actions while table search/filter/sort/date controls read synced campaign data. | Connect or remove remaining placeholder actions before production analytics use. |
+| Campaigns placeholder actions | `/src/app/(dashboard)/campaigns/page.tsx` | Keeps Klaviyo-style controls for library, calendar, benchmarks, display settings, and row actions while table search/date/region/audience/channel/status/tag/archive controls read synced campaign data. | Connect or remove remaining placeholder actions before production analytics use. |
 | Flows visual-only controls | `/src/app/(dashboard)/flows/page.tsx` | Keeps Klaviyo-style controls for analytics, options, advanced filters, and row actions while the table itself reads synced flow data. | Connect or remove visual-only controls before production analytics use. |
-| Klaviyo campaign relationship retry limits | `src/lib/integrations/klaviyo-sync.ts` | Keeps hourly/manual sync bounded while the current campaign-only ingestion slice fetches included campaign tags and the beta campaign-audience relationship map. | Move broader Klaviyo datasets into explicit queued/operator jobs instead of adding them to this sync. |
+| Klaviyo campaign relationship and performance retry limits | `src/lib/integrations/klaviyo-sync.ts` | Keeps hourly/manual sync bounded while the current campaign-only ingestion slice fetches included campaign tags, the beta campaign-audience relationship map, and one campaign values report per region/window. | Move broader Klaviyo datasets into explicit queued/operator jobs instead of adding them to this sync. |
 
 ## Verification Plan
 
@@ -28,7 +28,7 @@ behavior.
 - Verify cron route rejects missing or invalid `CRON_SECRET`.
 - Verify manual sync rejects unauthenticated requests.
 - Verify `/dashboard` and blank report routes intentionally render only the shared app shell while placeholders are active.
-- Verify `/campaigns` and `/klaviyo/campaigns` render synced campaign report rows or campaign metadata fallback rows, wired campaign search/filter/sort/date controls, and no secrets or raw API payloads.
+- Verify `/campaigns` and `/klaviyo/campaigns` render synced campaign report rows or campaign metadata fallback rows, wired campaign search/date/region/audience/channel/status/tag/archive controls, and no secrets or raw API payloads.
 - Verify `/flows` and `/klaviyo/flows` render synced flow report rows, flow metadata enrichment, and no secrets or raw API payloads.
 - Verify Settings rejects unauthenticated users through dashboard auth.
 - Verify Settings does not render saved platform secret values.
@@ -36,7 +36,7 @@ behavior.
 - Verify the Klaviyo connect button opens the Klaviyo step-by-step modal.
 - Verify provider-specific save forms do not require the other provider's credential.
 - Verify timezone is selected from a dropdown in both provider modals.
-- Verify the Klaviyo modal explains that the active sync fetches only campaigns, campaign status, campaign audiences, and campaign tags.
+- Verify the Klaviyo modal explains that the active sync fetches only campaigns, campaign performance, campaign status, campaign audiences, and campaign tags.
 - Verify disconnect nulls encrypted secret columns.
 - Verify sync ignores inactive regions and runs Shopify-ready or Klaviyo-ready regions only.
 - Verify combined Shopify/Klaviyo regions can sync both platforms and report partial status if only one platform fails.
@@ -67,6 +67,8 @@ behavior.
 | Static review after recoverable Klaviyo endpoint failure fix | Completed | Confirmed top-level campaign/flow metadata fetches now run sequentially with reduced-request fallbacks and sanitized endpoint/status logging. Live sync was not rerun in this turn. |
 | Current static review after Klaviyo optional raw-resource hardening | Completed | Ran `git diff --check`, reviewed log statements, and searched for stale paused/pending Klaviyo wording. Did not run lint, typecheck, build, or live sync because the current project instruction forbids build/test commands unless explicitly requested. |
 | Static review after Klaviyo campaign-only sync narrowing | Completed | Reviewed the campaign-only sync path, removed `page[size]` from campaign tag relationship fallbacks, replaced per-campaign audience probes with the beta campaign-audience relationship map, and did not run lint/typecheck/build/live sync because the current project instruction forbids build/test commands unless explicitly requested. |
+| Read-only Klaviyo campaign metric mismatch diagnostic | Completed | Compared `ProductPush-WorkWearCo-Ords-ZyraMyraAlyrah-26` stored report row against Klaviyo Reporting API without printing credentials. Klaviyo returned `recipients=10398`, `delivered=10353`, `opens_unique=2940`, `open_rate=0.28398`, `clicks_unique=102`, `click_rate=0.00985`, `conversion_uniques=5`, and `conversion_value=447.6`; the stored row had been using raw opens/clicks over recipients. |
+| Static review after Klaviyo native campaign metric mapping fix | Completed | Added migration `S006-klaviyo-campaign-report-native-rates.sql`, updated sync mapping to persist native rates/unique counts, and reviewed affected TypeScript/docs. Did not run lint, typecheck, build, or live sync because the current project instruction forbids build/test commands unless explicitly requested. |
 | Local cron sync after Klaviyo database upsert grain fix | Passed | Triggered `GET /api/cron/hourly-sync` against the local dev server with the server-side cron secret. Response was `200` with sync run `4786456a-eacd-4bb6-bd46-2d92f37e3d3f` and status `success` for 1 region. |
 | `GET /api/cron/hourly-sync` without secret | Passed | Returned `401 Unauthorized` with a sanitized JSON error. |
 | `GET /api/sync/status` in local demo mode | Passed | Returned sanitized demo sync metadata because `DEMO_MODE=true` locally. |

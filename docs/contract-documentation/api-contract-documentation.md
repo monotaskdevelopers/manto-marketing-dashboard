@@ -14,7 +14,7 @@ as the application grows.
 Purpose:
 
 - Runs hourly sync for every active region with Shopify or Klaviyo credentials. Shopify rows and the current
-  Klaviyo campaign metadata slice are written server-side.
+  Klaviyo campaign slice are written server-side.
 
 Authentication:
 
@@ -140,7 +140,8 @@ Important safeguards:
 
 Purpose:
 
-- Detect the preferred conversion metric ID when a Klaviyo private key is saved in Settings.
+- Detect the preferred conversion metric ID when a Klaviyo private key is saved in Settings or when campaign
+  sync needs a metric ID for campaign performance reports.
 
 Credential:
 
@@ -149,7 +150,8 @@ Credential:
 Important safeguards:
 
 - Use one API revision constant.
-- Call only `GET /api/metrics?fields[metric]=id,name,integration` during Settings save.
+- Call only `GET /api/metrics?fields[metric]=id,name,integration` during Settings save or bounded sync
+  metric detection.
 - Bound lookup pagination so saving a connection cannot crawl the account.
 - Retry 429 responses with a small bounded backoff.
 - Log only sanitized request metadata and JSON:API error summaries for debugging 400, 401, 403, 429, and 5xx responses.
@@ -159,22 +161,26 @@ Important safeguards:
 
 Purpose:
 
-- Fetch the current Klaviyo campaign metadata slice into local Supabase tables for fast Campaigns table
+- Fetch the current Klaviyo campaign slice into local Supabase tables for fast Campaigns table
   filters.
 
 Current behavior:
 
-- Manual and cron sync call campaign, campaign tag, campaign tag ID, and beta campaign-audience endpoints
-  when a region has an encrypted Klaviyo private key.
+- Manual and cron sync call campaign, campaign tag, campaign tag ID, beta campaign-audience, and campaign
+  values report endpoints when a region has an encrypted Klaviyo private key.
+- Campaign values report requests persist Klaviyo native delivered counts, unique open/click/conversion
+  recipient counts, and fractional rate fields so the Campaigns table does not recalculate campaign-list
+  metrics from raw totals.
 - Campaign tag and campaign-audience lookups are campaign-scoped optional details. Missing scopes,
   unsupported beta endpoints, 429 exhaustion after bounded retries, and transient detail failures are logged
   as sanitized warnings and do not fail the whole region.
-- Flows, profiles, events, metrics, Reporting API rows, lists, segments, broad raw resources, and images are
-  not fetched by the active Klaviyo sync.
+- Campaign values report failures are logged as sanitized warnings and do not block campaign metadata rows.
+- Flows, profiles, events, metrics, flow Reporting API rows, account-level daily Klaviyo metrics, lists,
+  segments, broad raw resources, and images are not fetched by the active Klaviyo sync.
 
 Important safeguards:
 
 - Any future Klaviyo ingestion must stay server-only and must never log profile PII, event properties, raw
   payloads, API keys, or auth headers.
 - Broader Klaviyo datasets should be added back as explicit product slices with their own rate-limit,
-  retention, and privacy rules instead of being hidden inside the campaign metadata sync.
+  retention, and privacy rules instead of being hidden inside the campaign sync.

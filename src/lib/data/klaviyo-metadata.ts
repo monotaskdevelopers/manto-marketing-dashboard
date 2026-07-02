@@ -11,7 +11,9 @@ import { isDemoMode } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type {
   KlaviyoCampaign,
+  KlaviyoCampaignMetadata,
   KlaviyoCampaignMessage,
+  KlaviyoFilterOption,
   KlaviyoFlow,
   KlaviyoFlowMessage,
   RankedCampaign,
@@ -23,6 +25,40 @@ const campaignMetadataSelect =
   "id, region_id, campaign_id, name, status, channel, channel_list, tag_ids, audience_ids, archived, klaviyo_created_at, klaviyo_updated_at, scheduled_at, send_at, search_text, a_b_test";
 const campaignMetadataFallbackSelect =
   "id, region_id, campaign_id, name, status, channel, archived, klaviyo_created_at, klaviyo_updated_at, scheduled_at, send_at, search_text";
+const campaignTagRelationshipSelect = "region_id, tag_id, target_id";
+const campaignAudienceRelationshipSelect =
+  "region_id, campaign_id, relationship_name, audience_type, audience_id, raw_payload";
+const campaignTagSelect = "region_id, tag_id, name";
+const audienceNameSelect = "region_id, audience_id, name";
+
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
+type CampaignTagRelationshipRow = {
+  region_id: string;
+  tag_id: string;
+  target_id: string;
+};
+
+type CampaignAudienceRelationshipRow = {
+  region_id: string;
+  campaign_id: string;
+  relationship_name: string;
+  audience_type: string;
+  audience_id: string;
+  raw_payload?: Record<string, unknown> | null;
+};
+
+type CampaignTagRow = {
+  region_id: string;
+  tag_id: string;
+  name: string | null;
+};
+
+type AudienceNameRow = {
+  region_id: string;
+  audience_id: string;
+  name: string | null;
+};
 
 export function buildKlaviyoMetadataKey(regionId: string, klaviyoObjectId: string) {
   return `${regionId}:${klaviyoObjectId}`;
@@ -48,8 +84,262 @@ function throwIfError(error: unknown, label: string) {
   }
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+function readString(source: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = source[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+}
+
+function addUniqueValue(valuesByKey: Map<string, string[]>, key: string, value: string | null | undefined) {
+  const trimmedValue = value?.trim();
+
+  if (!trimmedValue) {
+    return;
+  }
+
+  const existingValues = valuesByKey.get(key) || [];
+
+  if (!existingValues.includes(trimmedValue)) {
+    existingValues.push(trimmedValue);
+    valuesByKey.set(key, existingValues);
+  }
+}
+
+function addFilterOption(
+  optionsByKey: Map<string, KlaviyoFilterOption[]>,
+  key: string,
+  option: KlaviyoFilterOption,
+) {
+  const value = option.value.trim();
+  const label = option.label.trim();
+
+  if (!value || !label) {
+    return;
+  }
+
+  const existingOptions = optionsByKey.get(key) || [];
+
+  if (!existingOptions.some((existingOption) => existingOption.value === value)) {
+    existingOptions.push({ value, label });
+    optionsByKey.set(key, existingOptions);
+  }
+}
+
+function uniqueFilterOptions(options: KlaviyoFilterOption[]) {
+  const optionsByValue = new Map<string, KlaviyoFilterOption>();
+
+  options.forEach((option) => {
+    const value = option.value.trim();
+    const label = option.label.trim();
+
+    if (value && label && !optionsByValue.has(value)) {
+      optionsByValue.set(value, { value, label });
+    }
+  });
+
+  return Array.from(optionsByValue.values());
+}
+
+function getAudienceRelationshipLabel(row: CampaignAudienceRelationshipRow) {
+  const rawPayload = asRecord(row.raw_payload);
+  const attributes = asRecord(rawPayload.attributes);
+
+  return readString(attributes, ["name", "title", "label"]);
+}
+
+async function loadCampaignTagRelationships(
+  supabase: SupabaseServerClient,
+  regionIds: string[],
+  campaignIds: string[],
+) {
+  const rows: CampaignTagRelationshipRow[] = [];
+
+  for (const campaignIdBatch of toBatches(campaignIds)) {
+    const { data, error } = await supabase
+      .from("klaviyo_tag_relationships")
+      .select(campaignTagRelationshipSelect)
+      .in("region_id", regionIds)
+      .eq("target_type", "campaign")
+      .in("target_id", campaignIdBatch);
+
+    if (error) {
+      // Relationship tables are additive. Older databases can still render campaign rows from metadata.
+      return [];
+    }
+
+    rows.push(...((data || []) as CampaignTagRelationshipRow[]));
+  }
+
+  return rows;
+}
+
+async function loadCampaignAudienceRelationships(
+  supabase: SupabaseServerClient,
+  regionIds: string[],
+  campaignIds: string[],
+) {
+  const rows: CampaignAudienceRelationshipRow[] = [];
+
+  for (const campaignIdBatch of toBatches(campaignIds)) {
+    const { data, error } = await supabase
+      .from("klaviyo_campaign_audiences")
+      .select(campaignAudienceRelationshipSelect)
+      .in("region_id", regionIds)
+      .in("campaign_id", campaignIdBatch);
+
+    if (error) {
+      // Campaign audience tables are additive. Keep the page usable if a database is mid-migration.
+      return [];
+    }
+
+    rows.push(...((data || []) as CampaignAudienceRelationshipRow[]));
+  }
+
+  return rows;
+}
+
+async function loadTagLabelsByKey(supabase: SupabaseServerClient, regionIds: string[], tagIds: string[]) {
+  const labelsByKey = new Map<string, string>();
+
+  for (const tagIdBatch of toBatches(tagIds)) {
+    const { data, error } = await supabase
+      .from("klaviyo_tags")
+      .select(campaignTagSelect)
+      .in("region_id", regionIds)
+      .in("tag_id", tagIdBatch);
+
+    if (error) {
+      return labelsByKey;
+    }
+
+    ((data || []) as CampaignTagRow[]).forEach((tag) => {
+      if (tag.name?.trim()) {
+        labelsByKey.set(buildKlaviyoMetadataKey(tag.region_id, tag.tag_id), tag.name.trim());
+      }
+    });
+  }
+
+  return labelsByKey;
+}
+
+async function loadAudienceLabelsByKey(supabase: SupabaseServerClient, regionIds: string[], audienceIds: string[]) {
+  const labelsByKey = new Map<string, string>();
+
+  for (const audienceIdBatch of toBatches(audienceIds)) {
+    const { data, error } = await supabase
+      .from("klaviyo_audiences")
+      .select(audienceNameSelect)
+      .in("region_id", regionIds)
+      .in("audience_id", audienceIdBatch);
+
+    if (error) {
+      return labelsByKey;
+    }
+
+    ((data || []) as AudienceNameRow[]).forEach((audience) => {
+      if (audience.name?.trim()) {
+        labelsByKey.set(buildKlaviyoMetadataKey(audience.region_id, audience.audience_id), audience.name.trim());
+      }
+    });
+  }
+
+  return labelsByKey;
+}
+
+async function enrichCampaignRelationshipFilters({
+  supabase,
+  metadataByKey,
+  regionIds,
+  campaignIds,
+}: {
+  supabase: SupabaseServerClient;
+  metadataByKey: Map<string, KlaviyoCampaignMetadata>;
+  regionIds: string[];
+  campaignIds: string[];
+}) {
+  const tagIdsByCampaignKey = new Map<string, string[]>();
+  const audienceIdsByCampaignKey = new Map<string, string[]>();
+  const audienceRelationshipOptionsByCampaignKey = new Map<string, KlaviyoFilterOption[]>();
+
+  metadataByKey.forEach((campaign, key) => {
+    (campaign.tag_ids || []).forEach((tagId) => addUniqueValue(tagIdsByCampaignKey, key, tagId));
+    (campaign.audience_ids || []).forEach((audienceId) =>
+      addUniqueValue(audienceIdsByCampaignKey, key, audienceId),
+    );
+  });
+
+  const [tagRelationships, audienceRelationships] = await Promise.all([
+    loadCampaignTagRelationships(supabase, regionIds, campaignIds),
+    loadCampaignAudienceRelationships(supabase, regionIds, campaignIds),
+  ]);
+
+  tagRelationships.forEach((relationship) => {
+    addUniqueValue(
+      tagIdsByCampaignKey,
+      buildKlaviyoMetadataKey(relationship.region_id, relationship.target_id),
+      relationship.tag_id,
+    );
+  });
+
+  audienceRelationships.forEach((relationship) => {
+    const campaignKey = buildKlaviyoMetadataKey(relationship.region_id, relationship.campaign_id);
+
+    addUniqueValue(audienceIdsByCampaignKey, campaignKey, relationship.audience_id);
+    addFilterOption(audienceRelationshipOptionsByCampaignKey, campaignKey, {
+      value: relationship.audience_id,
+      label: getAudienceRelationshipLabel(relationship) || relationship.audience_id,
+    });
+  });
+
+  const tagIds = uniqueValues(Array.from(tagIdsByCampaignKey.values()).flat());
+  const audienceIds = uniqueValues(Array.from(audienceIdsByCampaignKey.values()).flat());
+  const [tagLabelsByKey, audienceLabelsByKey] = await Promise.all([
+    loadTagLabelsByKey(supabase, regionIds, tagIds),
+    loadAudienceLabelsByKey(supabase, regionIds, audienceIds),
+  ]);
+
+  metadataByKey.forEach((campaign, key) => {
+    const tagIdsForCampaign = uniqueValues(tagIdsByCampaignKey.get(key) || []);
+    const audienceIdsForCampaign = uniqueValues(audienceIdsByCampaignKey.get(key) || []);
+    const audienceRelationshipOptions = (audienceRelationshipOptionsByCampaignKey.get(key) || []).map((option) => ({
+      value: option.value,
+      label:
+        option.label === option.value
+          ? audienceLabelsByKey.get(buildKlaviyoMetadataKey(campaign.region_id, option.value)) || option.label
+          : option.label,
+    }));
+
+    // Mutate the server-only metadata object so existing filter checks keep using the canonical ID arrays.
+    campaign.tag_ids = tagIdsForCampaign;
+    campaign.audience_ids = audienceIdsForCampaign;
+    campaign.tag_filter_options = uniqueFilterOptions(
+      tagIdsForCampaign.map((tagId) => ({
+        value: tagId,
+        label: tagLabelsByKey.get(buildKlaviyoMetadataKey(campaign.region_id, tagId)) || tagId,
+      })),
+    );
+    campaign.audience_filter_options = uniqueFilterOptions([
+      ...audienceRelationshipOptions,
+      ...audienceIdsForCampaign.map((audienceId) => ({
+        value: audienceId,
+        label: audienceLabelsByKey.get(buildKlaviyoMetadataKey(campaign.region_id, audienceId)) || audienceId,
+      })),
+    ]);
+  });
+}
+
 export async function getCampaignMetadataByReportRows(rows: RankedCampaign[]) {
-  const metadataByKey = new Map<string, KlaviyoCampaign>();
+  const metadataByKey = new Map<string, KlaviyoCampaignMetadata>();
 
   if (isDemoMode() || !rows.length) {
     return metadataByKey;
@@ -60,11 +350,13 @@ export async function getCampaignMetadataByReportRows(rows: RankedCampaign[]) {
   const campaignIds = uniqueValues(rows.map((row) => row.campaign_id));
 
   for (const campaignIdBatch of toBatches(campaignIds)) {
-    let { data, error } = await supabase
+    const metadataResult = await supabase
       .from("klaviyo_campaigns")
       .select(campaignMetadataSelect)
       .in("region_id", regionIds)
       .in("campaign_id", campaignIdBatch);
+    let data: unknown[] | null = metadataResult.data;
+    let error = metadataResult.error;
 
     if (error) {
       // Campaign filter fields come from the latest Klaviyo migration. Fall back to the old shape so the
@@ -85,6 +377,13 @@ export async function getCampaignMetadataByReportRows(rows: RankedCampaign[]) {
       metadataByKey.set(buildKlaviyoMetadataKey(campaign.region_id, campaign.campaign_id), campaign);
     });
   }
+
+  await enrichCampaignRelationshipFilters({
+    supabase,
+    metadataByKey,
+    regionIds,
+    campaignIds,
+  });
 
   return metadataByKey;
 }

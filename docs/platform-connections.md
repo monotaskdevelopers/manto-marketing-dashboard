@@ -26,11 +26,11 @@ The flow is:
 6. The server encrypts the Shopify and Klaviyo secrets with `APP_ENCRYPTION_KEY`.
 7. The encrypted secrets and non-secret connection metadata are saved to Supabase.
 8. Hourly cron and manual sync load Shopify-ready and Klaviyo-ready connections from Supabase.
-9. Sync decrypts platform secrets only on the server and writes Shopify rows plus the current Klaviyo campaign metadata slice.
+9. Sync decrypts platform secrets only on the server and writes Shopify rows plus the current Klaviyo campaign slice.
 10. Users can disconnect Shopify or Klaviyo from `/settings`; disconnect removes the encrypted secret from the database.
 
 Klaviyo campaign ingestion is active again. The rebuilt Klaviyo sync fetches only campaigns, campaign
-status, campaign audiences, and campaign tags.
+performance, campaign status, campaign audiences, and campaign tags.
 
 ## Architecture Decision
 
@@ -43,7 +43,7 @@ Current design:
 - Region display metadata lives in `regions`.
 - Platform connection metadata and encrypted secrets live in `platform_connections`.
 - Sync reads active database connections instead of parsing `REGION_CONFIG_JSON`.
-- Current sync writes Shopify reporting plus Klaviyo campaign metadata rows when the region has a connected Klaviyo key.
+- Current sync writes Shopify reporting plus Klaviyo campaign metadata and performance rows when the region has a connected Klaviyo key.
 - `APP_ENCRYPTION_KEY` remains server-only and is never stored in Supabase.
 
 This keeps the tool easier to operate for non-developers while still avoiding plain secret storage.
@@ -68,8 +68,8 @@ This keeps the tool easier to operate for non-developers while still avoiding pl
 | Encryption helper | `/src/lib/security/secret-encryption.ts` | Encrypts and decrypts platform secrets with AES-256-GCM. |
 | Region config loader | `/src/lib/config/regions.ts` | Loads active connected regions from Supabase for sync. |
 | Shopify client | `/src/lib/integrations/shopify.ts` | Calls Shopify Admin GraphQL and aggregates orders by day. |
-| Klaviyo Settings helper | `/src/lib/integrations/klaviyo.ts` | Performs Settings-time conversion metric detection. |
-| Klaviyo sync client | `/src/lib/integrations/klaviyo-sync.ts` | Fetches only campaigns, campaign status, campaign audiences, campaign tags, and sanitized raw campaign/tag/audience resources for the current Campaigns table slice. |
+| Klaviyo metric helper | `/src/lib/integrations/klaviyo.ts` | Performs bounded conversion metric detection for Settings and campaign performance sync. |
+| Klaviyo sync client | `/src/lib/integrations/klaviyo-sync.ts` | Fetches only campaigns, campaign performance, campaign status, campaign audiences, campaign tags, and sanitized raw campaign/tag/audience resources for the current Campaigns table slice. |
 | Sync orchestrator | `/src/lib/sync/run-sync.ts` | Runs each active Shopify-ready or Klaviyo-ready region and writes rows to Supabase in batches. |
 | DB migration | `/supabase/migrations/S002-platform-connections.sql` | Adds `platform_connections` with RLS and service-role-only writes. |
 | DB migration | `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage. |
@@ -217,8 +217,9 @@ Useful current scopes:
 - Tag read access lets the sync fetch campaign tags and campaign tag IDs.
 - Campaign audience beta/read access lets the sync fetch the beta campaign audience relationship map where
   Klaviyo exposes that beta API for the account.
-- `metrics:read` is optional and is used only by the existing Settings-time conversion metric detector, not
-  by the current campaign metadata sync.
+- `metrics:read` lets the app auto-detect the conversion metric ID used by campaign performance reporting.
+- Reporting/campaign value report access is needed for synced open rate, click rate, conversions, and
+  placed-order revenue. If this request fails, metadata rows still sync and a sanitized warning is logged.
 
 Grant only the read scopes needed for the resources this dashboard should sync. Missing optional scopes are
 logged as sanitized warnings and do not fail the whole region.
@@ -229,7 +230,7 @@ Steps:
 2. Go to account API key settings.
 3. Create a private API key.
 4. Use read-only or custom scopes.
-5. Include campaign, tag, and campaign-audience read scopes needed for the current Campaigns table.
+5. Include campaign, tag, campaign-audience, metrics, and reporting read scopes needed for the current Campaigns table.
 6. Copy the private key immediately.
 7. Click `Connect Klaviyo` or `Update Klaviyo` in `/settings`.
 8. Follow the multi-step Klaviyo popup guide.
@@ -238,7 +239,7 @@ Steps:
 11. The server stores the encrypted private key.
 12. The server tries Klaviyo's Metrics API with `fields[metric]=id,name,integration`.
 13. The server prefers revenue metrics such as `Placed Order` or `Ordered Product`.
-14. If metric lookup is denied, reconnect later with `metrics:read`.
+14. If metric lookup is denied, reconnect later with `metrics:read` or store a detected metric ID by reconnecting with that scope.
 15. Run a manual sync to confirm the key can read the intended Klaviyo resources.
 
 The app sends Klaviyo requests with:
@@ -266,14 +267,16 @@ Current active behavior:
 - `src/lib/integrations/klaviyo.ts` calls `GET /api/metrics?fields[metric]=id,name,integration` during
   Settings save when a new private key is provided.
 - `src/lib/integrations/klaviyo-sync.ts` runs during manual and cron sync for connected Klaviyo regions.
-- Manual and cron sync write Klaviyo campaign, campaign audience, campaign tag, campaign tag relationship,
-  and sanitized raw campaign/tag/audience resource rows.
+- Manual and cron sync write Klaviyo campaign report, campaign, campaign audience, campaign tag, campaign
+  tag relationship, and sanitized raw campaign/tag/audience resource rows.
 - Stable campaign fetches request included tags when Klaviyo supports them. A per-campaign tag lookup is
   used only as a fallback when a campaign payload does not expose tag relationships.
 - The campaign-audience beta relationship-map fetch uses a `.pre` revision automatically and is logged as a
   sanitized warning when unavailable.
-- Flows, profiles, events, metrics, lists, segments, Reporting API rows, broad raw resources, and images are
-  intentionally not synced by the active Klaviyo sync.
+- Campaign performance uses one campaign values report request per metric day in the region sync window and
+  is logged as a sanitized warning when unavailable.
+- Flows, profiles, events, metrics, lists, segments, flow Reporting API rows, account-level daily Klaviyo
+  metrics, broad raw resources, and images are intentionally not synced by the active Klaviyo sync.
 
 Broader Klaviyo datasets still need separate product slices and operator flows before they should run
 against production accounts.
@@ -341,7 +344,11 @@ Check:
 Check:
 
 - The connected private key includes campaign, tag, and campaign-audience read scopes needed for the current
-  campaign metadata slice.
+  campaign slice.
+- The connected private key includes `metrics:read` or already has a saved `klaviyo_conversion_metric_id` if
+  campaign revenue/conversion values are expected.
+- The connected private key can call campaign values reports if open rate, click rate, conversions, and
+  revenue are expected.
 - The API revision in `KLAVIYO_REVISION` is still supported.
 - Campaign tag fallback and campaign-audience relationship-map endpoints can be skipped with sanitized
   warnings when a scope, endpoint, beta surface, rate limit, or transient platform error is unavailable.

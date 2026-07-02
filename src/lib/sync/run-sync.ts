@@ -1,8 +1,8 @@
 /*
 File description:
 This file orchestrates platform sync runs. It writes Shopify reporting rows, writes the current narrow
-Klaviyo campaign metadata scope, records sync history, prevents overlapping jobs, and keeps logs sanitized
-for debugging.
+Klaviyo campaign metadata and performance scope, records sync history, prevents overlapping jobs, and keeps
+logs sanitized for debugging.
 */
 
 import "server-only";
@@ -269,8 +269,9 @@ async function syncRegion(params: {
         endDate: params.endDate,
       });
 
-      // Current Klaviyo scope is deliberately narrow: campaigns, campaign audiences, campaign tags, and
-      // campaign status. Do not add broader Klaviyo writes here without updating the product scope first.
+      // Current Klaviyo scope is deliberately narrow: campaigns, campaign performance, campaign audiences,
+      // campaign tags, and campaign status. Do not add broader Klaviyo writes here without updating the
+      // product scope first.
       await upsertSyncRows({
         table: "klaviyo_tags",
         rows: klaviyoRows.tagRows,
@@ -289,6 +290,13 @@ async function syncRegion(params: {
         table: "klaviyo_campaigns",
         rows: klaviyoRows.campaignRows,
         conflictTarget: "region_id,campaign_id",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_campaign_reports",
+        rows: klaviyoRows.campaignReportRows,
+        conflictTarget: "region_id,campaign_id,send_date",
         regionSlug: params.region.slug,
         syncRunId: params.syncRunId,
       });

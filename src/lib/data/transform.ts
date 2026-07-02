@@ -204,6 +204,18 @@ function buildKlaviyoTrend(klaviyoRows: KlaviyoDailyMetric[]): KlaviyoTrendPoint
   return Array.from(trend.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function validStoredRate(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function campaignEngagementDenominator(row: KlaviyoCampaignReport) {
+  return Number(row.delivered_count || row.recipients_count || 0);
+}
+
+function campaignUniqueCount(value: number | null | undefined, fallback: number) {
+  return Number(value || fallback || 0);
+}
+
 export function buildDashboardDataFromRows(input: DashboardRowInput): DashboardData {
   const selectedRegions =
     input.filters.regionSlug === "all"
@@ -232,10 +244,18 @@ export function buildDashboardDataFromRows(input: DashboardRowInput): DashboardD
     .map((row) => ({
       ...row,
       region_name: regionNameById.get(row.region_id) || "Unknown region",
-      openRate: safeRate(row.opens_count, row.recipients_count),
-      clickRate: safeRate(row.clicks_count, row.recipients_count),
-      conversionRate: safeRate(row.conversions_count, row.recipients_count),
-      revenuePerRecipient: safeRate(row.revenue_amount, row.recipients_count),
+      openRate:
+        validStoredRate(row.open_rate) ??
+        safeRate(campaignUniqueCount(row.opens_unique_count, row.opens_count), campaignEngagementDenominator(row)),
+      clickRate:
+        validStoredRate(row.click_rate) ??
+        safeRate(campaignUniqueCount(row.clicks_unique_count, row.clicks_count), campaignEngagementDenominator(row)),
+      conversionRate:
+        validStoredRate(row.conversion_rate) ??
+        safeRate(campaignUniqueCount(row.conversions_unique_count, row.conversions_count), campaignEngagementDenominator(row)),
+      revenuePerRecipient:
+        validStoredRate(row.revenue_per_recipient) ??
+        safeRate(row.revenue_amount, campaignEngagementDenominator(row)),
     }))
     .sort((a, b) => b.revenue_amount - a.revenue_amount);
 

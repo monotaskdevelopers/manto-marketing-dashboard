@@ -57,8 +57,8 @@ Next.js and Vercel:
 ### Klaviyo
 
 - Klaviyo private keys authenticate server-side `/api` requests and should not be exposed in client-side code.
-- The current active Klaviyo sync is limited to campaigns, campaign status, campaign audiences, campaign
-  tags, and campaign tag IDs.
+- The current active Klaviyo sync is limited to campaigns, campaign performance, campaign status, campaign
+  audiences, campaign tags, and campaign tag IDs.
 - Campaigns can be fetched by channel so email, SMS, and mobile push campaign rows can be deduplicated into
   one local campaign table.
 - Campaign collection requests should include tags when Klaviyo supports it, reducing per-campaign tag
@@ -68,23 +68,32 @@ Next.js and Vercel:
 - Campaign-scoped tag relationship fallback endpoints should not receive `page[size]`; Klaviyo rejects that
   query on those resources.
 - Campaign audience beta endpoints should use the `.pre` API revision only for the beta request.
-- The Metrics API can still return metric `id`, `name`, and `integration` for the existing Settings-time
-  conversion metric detector, but metrics are not part of the active campaign metadata sync.
-- Broader Klaviyo datasets such as flows, Reporting API rows, profiles, events, lists, segments, templates,
-  forms, coupons, web feeds, and webhooks should not be reintroduced without a separate scoped decision.
+- The Metrics API can return metric `id`, `name`, and `integration` for bounded conversion metric detection
+  used by Settings and campaign performance sync.
+- Campaign performance uses the Campaign Values Reporting API and must stay at one request per region/window
+  unless a future queued reporting job is introduced.
+- Campaign-list open/click/conversion rates should use Klaviyo's native rate fields and unique recipient
+  action counts from Campaign Values Reporting API. A live mismatch check showed raw opens/clicks over
+  `recipients` can drift from Klaviyo's UI; the stable denominator for native rates is delivered recipients
+  when Klaviyo supplies `delivered`.
+- Broader Klaviyo datasets such as flows, flow Reporting API rows, account-level daily metrics, profiles,
+  events, lists, segments, templates, forms, coupons, web feeds, and webhooks should not be reintroduced
+  without a separate scoped decision.
 - New integrations should use the latest stable API revision and track deprecation timelines.
 
 Decision:
 
 - Keep the API revision in one constant so it can be upgraded deliberately.
-- Store campaign metadata locally in Supabase so the Campaigns table can filter by region, date, status,
-  channel, audience, tag, A/B test state, and archived state without calling Klaviyo on page load.
+- Store campaign report and metadata rows locally in Supabase so the Campaigns table can filter by region,
+  date, status, channel, audience, tag, and archived state without calling Klaviyo on page load.
 - Keep Klaviyo request and failure logs sanitized, but include endpoint path, revision, HTTP status, retry
   attempts, region slug, sync run ID, row counts, and JSON:API error summaries.
 - Treat campaign fetch as required; if campaigns cannot be fetched after bounded retries, fail the Klaviyo
   region clearly.
 - Treat campaign tag fallback and campaign-audience relationship-map endpoints as optional enrichment; after
   bounded retries, log sanitized warnings and continue syncing core campaign rows.
+- Treat campaign performance reporting as optional enrichment; after bounded retries, log sanitized warnings
+  and continue syncing campaign metadata rows.
 - Keep beta/pre-release Klaviyo endpoints optional and non-fatal, and send the `.pre` API revision only for
   endpoints that require it.
 - Exclude images and all broader Klaviyo resource families from the active sync because the current product

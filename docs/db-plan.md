@@ -11,8 +11,8 @@ future schema changes are made.
 
 Supabase Postgres stores normalized reporting data fetched from Shopify and Klaviyo. The dashboard reads
 from local tables instead of calling external APIs on every page load. The active Klaviyo sync currently
-writes only campaign, campaign status, campaign audience, campaign tag, and raw campaign/tag/audience
-resource rows needed by the Campaigns table.
+writes only campaign, campaign performance, campaign status, campaign audience, campaign tag, and raw
+campaign/tag/audience resource rows needed by the Campaigns table.
 
 ## Migration Files
 
@@ -112,19 +112,29 @@ Important columns:
 
 ### `klaviyo_campaign_reports`
 
-Stores campaign-level reporting rows.
+Stores campaign-level daily reporting rows. The active Klaviyo sync writes this existing table from
+daily `campaign-values-reports` results collapsed to the unique `(region_id, campaign_id, send_date)` grain.
+For these synced performance rows, `send_date` is the metric date for that daily report row.
 
 Important columns:
 
 - `region_id`.
 - `campaign_id`.
 - `campaign_name`.
-- `send_date`.
-- `recipients_count`.
-- `opens_count`.
-- `clicks_count`.
-- `conversions_count`.
+- `send_date`: daily metric date for synced campaign performance rows.
+- `recipients_count`: raw Klaviyo `recipients` count for the campaign report grouping.
+- `delivered_count`: Klaviyo delivered count used as the campaign-list engagement denominator.
+- `opens_count`: raw total opens.
+- `opens_unique_count`: unique recipients who opened; this is the count displayed under Open Rate.
+- `open_rate`: fractional Klaviyo native open rate from `campaign-values-reports`.
+- `clicks_count`: raw total clicks.
+- `clicks_unique_count`: unique recipients who clicked; this is the count displayed under Click Rate.
+- `click_rate`: fractional Klaviyo native click rate from `campaign-values-reports`.
+- `conversions_count`: unique conversion recipients for Campaigns table display.
+- `conversions_unique_count`: explicit unique conversion recipient count from Klaviyo.
+- `conversion_rate`: fractional Klaviyo native conversion rate from `campaign-values-reports`.
 - `revenue_amount`.
+- `revenue_per_recipient`: fractional/native Klaviyo revenue-per-recipient value when supplied.
 - `currency_code`.
 
 ### `klaviyo_flow_reports`
