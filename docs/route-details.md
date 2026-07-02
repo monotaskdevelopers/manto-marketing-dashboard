@@ -17,10 +17,10 @@ or route handlers are added, removed, renamed, or materially changed.
 | `/shopify` | Shopify reporting placeholder | Preserves the protected Shopify overview route but renders no page body during the redesign reset. | High |
 | `/shopify/regional` | Shopify regional reporting placeholder | Reuses the blank `/regional` implementation under the nested Shopify navigation hierarchy. | High |
 | `/klaviyo` | Klaviyo reporting placeholder | Preserves the protected Klaviyo overview route but renders no page body during the redesign reset. | High |
-| `/klaviyo/campaigns` | Klaviyo campaign drill-down placeholder | Preserves the protected campaign drill-down route but renders no page body during the redesign reset. | High |
-| `/klaviyo/flows` | Klaviyo flow drill-down placeholder | Preserves the protected flow drill-down route but renders no page body during the redesign reset. | High |
-| `/campaigns` | Campaign reporting placeholder | Preserves the protected top-level campaign route but renders no page body during the redesign reset. | High |
-| `/flows` | Flow reporting placeholder | Preserves the protected top-level flow route but renders no page body during the redesign reset. | High |
+| `/klaviyo/campaigns` | Klaviyo campaign workspace | Renders the shared rebuilt Campaigns workspace under the nested Klaviyo navigation hierarchy. | High |
+| `/klaviyo/flows` | Klaviyo flow workspace | Renders the shared rebuilt Flows workspace under the nested Klaviyo navigation hierarchy. | High |
+| `/campaigns` | Campaign reporting workspace | Renders the rebuilt Klaviyo-style campaign workspace with metrics, compact controls, and a campaign table scaffold. | High |
+| `/flows` | Flow reporting workspace | Renders the rebuilt Klaviyo-style flow workspace with compact controls and a flow table scaffold. | High |
 | `/settings` | Platform connection settings | Lets authenticated users connect, disconnect, and deactivate Shopify/Klaviyo region connections through server actions. | Critical |
 
 ## Primary Sidebar Hierarchy
@@ -28,8 +28,8 @@ or route handlers are added, removed, renamed, or materially changed.
 - `Dashboard` links to `/dashboard` and sits outside the Analytics dropdown.
 - `Analytics`
 - `Analytics > Klaviyo > Overview` links to `/klaviyo` for the future Klaviyo overview rebuild.
-- `Analytics > Klaviyo > Campaigns` links to `/klaviyo/campaigns` for the future campaign drill-down rebuild.
-- `Analytics > Klaviyo > Flows` links to `/klaviyo/flows` for the future automation drill-down rebuild.
+- `Analytics > Klaviyo > Campaigns` links to `/klaviyo/campaigns` for the rebuilt campaign workspace.
+- `Analytics > Klaviyo > Flows` links to `/klaviyo/flows` for the rebuilt flow workspace.
 - `Analytics > Shopify > Overview` links to `/shopify` for the future ecommerce reporting rebuild.
 - `Analytics > Shopify > Regional Performance` links to `/shopify/regional`, which reuses the same blank placeholder as `/regional` for compatibility.
 - `Settings` remains separate from Analytics because it changes platform connections and encrypted credentials rather than reporting data.
@@ -47,6 +47,6 @@ or route handlers are added, removed, renamed, or materially changed.
 - All dashboard routes require Supabase authentication.
 - API routes that mutate data must verify auth or cron secret server-side.
 - Date and region filters should remain URL query parameters when analytics pages are rebuilt.
-- Analytics pages are intentionally blank during the UI reset, except Settings, which remains operational.
+- Analytics pages are intentionally blank during the UI reset, except Settings and the rebuilt Campaigns and Flows workspaces.
 - Future analytics table filters should stay inside the table header, server-rendered, and URL-driven so reports remain shareable without exposing platform credentials or adding client-only reporting state.
 - Future pages with multiple tables should use scoped query parameter names so one table's search, filter, and sort state does not overwrite another table's state.

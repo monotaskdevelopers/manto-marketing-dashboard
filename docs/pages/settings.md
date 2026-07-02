@@ -14,6 +14,8 @@ Klaviyo platform connections without editing environment JSON.
 ## Contents
 
 - Current connection status by region.
+- Latest sync status header.
+- Manual Sync now button.
 - Separate Shopify connect/update button.
 - Separate Klaviyo connect/update button.
 - Multi-step Shopify setup modal.
@@ -40,6 +42,7 @@ Klaviyo platform connections without editing environment JSON.
 - Never shows saved secrets back to the browser.
 - Lets non-developer operators manage connections safely.
 - Keeps historical reporting rows when a platform or region is disconnected.
+- Keeps the manual sync button on Settings only so reporting pages can use page-specific headers.
 
 ## Security Considerations
 

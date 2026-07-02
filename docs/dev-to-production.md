@@ -91,6 +91,8 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Re-run `npm audit --omit=dev`; the current audit has a moderate transitive `postcss` advisory through Next.js and should be revisited before launch.
 - Verify login.
 - Verify dashboard report pages have been rebuilt, or explicitly accept the blank placeholder state for the release.
+- Verify the Campaigns scaffold is wired to live synced campaign data before using it for production reporting decisions.
+- Verify the Flows scaffold is wired to live synced flow data before using it for production reporting decisions.
 - Verify `/settings` loads for authenticated users.
 - Verify a test region can be connected from `/settings`.
 - Verify disconnect removes encrypted Shopify/Klaviyo secrets from `platform_connections`.

@@ -14,7 +14,9 @@ behavior.
 | `DEMO_MODE=true` | `src/lib/data/demo-data.ts` and data access functions | Allows local UI review when Supabase and platform credentials are not configured. | Must be `false` or unset in production. |
 | Manual sync range cap | `src/app/api/sync/route.ts` | Prevents excessive manual sync windows. | Keep and tune based on real usage. |
 | Settings credential entry | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Lets local/staging users connect Shopify and Klaviyo credentials separately through guided modals. | Keep, but verify `APP_ENCRYPTION_KEY` and RLS before production. |
-| Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
+| Blank report route placeholders | `/src/app/(dashboard)/**/page.tsx` except `/settings`, `/campaigns`, `/klaviyo/campaigns`, `/flows`, and `/klaviyo/flows` | Keeps protected routes available while the UI is redesigned from the ground up. | Replace with production-ready report pages before launch or explicitly accept a blank beta state. |
+| Static Campaigns UI scaffold | `/src/app/(dashboard)/campaigns/page.tsx` | Recreates the requested campaign layout before filters and rows are wired to live reporting data. | Connect controls and table rows to synced campaign data before production analytics use. |
+| Static Flows UI scaffold | `/src/app/(dashboard)/flows/page.tsx` | Recreates the requested flow layout before filters and rows are wired to live reporting data. | Connect controls and table rows to synced flow data before production analytics use. |
 
 ## Verification Plan
 
@@ -24,7 +26,9 @@ behavior.
 - Verify protected dashboard routes redirect unauthenticated users to login.
 - Verify cron route rejects missing or invalid `CRON_SECRET`.
 - Verify manual sync rejects unauthenticated requests.
-- Verify `/dashboard` and report routes intentionally render only the shared app shell while blank placeholders are active.
+- Verify `/dashboard` and blank report routes intentionally render only the shared app shell while placeholders are active.
+- Verify `/campaigns` and `/klaviyo/campaigns` render the rebuilt campaign workspace and do not expose secrets or raw API payloads.
+- Verify `/flows` and `/klaviyo/flows` render the rebuilt flow workspace and do not expose secrets or raw API payloads.
 - Verify Settings rejects unauthenticated users through dashboard auth.
 - Verify Settings does not render saved platform secret values.
 - Verify the Shopify connect button opens the Shopify step-by-step modal.

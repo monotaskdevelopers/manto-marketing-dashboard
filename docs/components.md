@@ -8,7 +8,7 @@ component is created, renamed, moved, or removed.
 
 | Component | File path | Description |
 | --- | --- | --- |
-| `AppShell` | `/src/components/app-shell.tsx` | Shared authenticated layout with sidebar navigation, keyboard skip link, sync status, and logout. |
+| `AppShell` | `/src/components/app-shell.tsx` | Shared authenticated layout with sidebar navigation, mobile navigation access, keyboard skip link, and logout. |
 | `AppNavigation` | `/src/components/app-navigation.tsx` | Client-side dashboard navigation with a top-level Dashboard link, nested Analytics groups, Settings, and active-route styling for sidebar and mobile views. |
 | `FilterBar` | `/src/components/filter-bar.tsx` | Carded date range and region controls shared across dashboard pages. |
 | `MetricCard` | `/src/components/metric-card.tsx` | Compact KPI card for revenue, orders, rates, and counts with required plain-language calculation tooltip. |
@@ -22,6 +22,6 @@ component is created, renamed, moved, or removed.
 | `InfoTooltip` | `/src/components/info-tooltip.tsx` | Accessible hover/focus tooltip used to explain metrics and table columns in plain language. |
 | `ReportHeader` | `/src/components/report-header.tsx` | Consistent unframed page header for analytics pages with balanced title wrapping, description, and optional date/filter meta. |
 | `PillButton`, `SelectControl`, `DateControl`, `TextControl` | `/src/components/ui-controls.tsx` | Shared pill-shaped buttons and styled native form controls for filters, login, and Settings forms. |
-| `SyncButton` | `/src/components/sync-button.tsx` | Client-side manual sync button with loading and result states. |
+| `SyncButton` | `/src/components/sync-button.tsx` | Client-side manual sync button with loading and result states, currently shown from Settings only. |
 | `StatusBadge` | `/src/components/status-badge.tsx` | Small status label for sync and health states. |
 | `PlatformConnectionManager` | `/src/app/(dashboard)/settings/platform-connection-manager.tsx` | Page-specific Settings component with separate Shopify and Klaviyo guided connection modals. |

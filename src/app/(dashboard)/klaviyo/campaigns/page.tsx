@@ -1,10 +1,7 @@
 /*
 File description:
-This Klaviyo Campaign Performance page is intentionally blank while the granular campaign reporting UI is
-redesigned. The route remains available under the Klaviyo navigation group for future reconstruction.
+This Klaviyo Campaign Performance route renders the shared rebuilt Campaigns workspace under the nested
+Klaviyo navigation hierarchy so the sidebar destination and top-level `/campaigns` route stay aligned.
 */
 
-export default function KlaviyoCampaignDrilldownPage() {
-  // Keep this route empty until the new Klaviyo campaign drill-down design is implemented.
-  return null;
-}
+export { default } from "../../campaigns/page";

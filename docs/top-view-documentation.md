@@ -10,7 +10,7 @@ production-readiness notes before changing the application.
 
 ## Purpose
 
-This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. The report pages are currently blank redesign placeholders except for Settings, which remains operational for platform connections. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, and flow data for future reporting, sorting, filtering, and searching.
+This project is an internal reporting dashboard that combines Shopify sales data and Klaviyo email marketing data into one unified view. Most report pages are currently blank redesign placeholders; Settings remains operational for platform connections, and Campaigns and Flows now have rebuilt Klaviyo-style UI scaffolds. Klaviyo sync also stores comprehensive profile, audience, membership, metric, event, tag, campaign, and flow data for future reporting, sorting, filtering, and searching.
 
 ## Documentation Index
 
@@ -50,8 +50,8 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Database and auth: Supabase.
 - Data sources: Shopify Admin GraphQL API and Klaviyo APIs.
 - Sync frequency: Vercel Cron calls the sync route every hour.
-- Manual sync: authenticated internal users can trigger a fresh sync from the shared dashboard shell.
-- UI reset: all authenticated report pages except Settings are intentionally blank placeholders while the new experience is designed.
+- Manual sync: authenticated internal users can trigger a fresh sync from Settings.
+- UI reset: authenticated report pages except Settings, Campaigns, and Flows are intentionally blank placeholders while the new experience is designed.
 - Klaviyo comprehensive sync: stores profiles, audiences, memberships, metrics, events, tags, campaigns, flows, and raw JSON payloads in authenticated Supabase tables.
 - Secrets: platform API credentials are entered through Settings, encrypted server-side, and stored in Supabase.
 

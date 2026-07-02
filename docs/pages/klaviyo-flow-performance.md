@@ -1,30 +1,34 @@
 <!--
 File description:
-This file documents the Klaviyo Flow Performance page. It explains the current blank redesign state,
-route purpose, controls that need to be rebuilt, and security posture.
+This file documents the Klaviyo Flow Performance page. It explains that the nested Klaviyo route reuses
+the rebuilt Flows workspace and records the remaining data-wiring work.
 -->
 
 # Klaviyo Flow Performance
 
 ## Purpose
 
-Preserve `/klaviyo/flows` while the granular Klaviyo automation reporting UI is redesigned.
+Expose the rebuilt Flows workspace at `/klaviyo/flows` inside the `Analytics > Klaviyo` navigation
+hierarchy.
 
 ## Contents
 
-- No page-specific body content during the redesign reset.
-- The shared authenticated app shell remains visible.
+- Same Flows workspace as `/flows`.
+- Flow filters.
+- Flow table scaffold.
 
 ## Features
 
-- Protected route remains available under `Analytics > Klaviyo > Flows`.
-- Does not query flow analytics data while blank.
+- Reuses the top-level `/flows` page implementation.
+- Preserves the existing nested sidebar destination.
+- Shows Flow Name, Type, Status, Last Updated, Revenue, and Revenue per recipient columns.
 
 ## Security Concerns
 
 - Must require the authenticated dashboard layout.
-- Must not expose Klaviyo private keys, raw API responses, or sync credentials to the client.
+- Must not expose Klaviyo private keys, raw API responses, sync credentials, or recipient PII.
+- Current rows are static UI scaffold data, not live reporting output.
 
 ## Known Gaps
 
-- Flow search, filters, charts, metrics, and detail tables need to be rebuilt.
+- Flow controls and table rows must be connected to synced flow reporting data before production analytics use.

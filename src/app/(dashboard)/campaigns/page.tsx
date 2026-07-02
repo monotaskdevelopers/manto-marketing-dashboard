@@ -453,9 +453,9 @@ export default function CampaignsPage() {
                       />
                     </td>
                     <td className="max-w-[360px] px-2 py-3 align-middle">
-                      <a href="#" className="font-medium text-[#2d6cff] hover:underline">
+                      <button type="button" className="text-left font-medium text-[#2d6cff] hover:underline">
                         {row.name}
-                      </a>
+                      </button>
                       <p className="mt-1 truncate text-sm font-medium text-[#666b72]">{row.audience}</p>
                     </td>
                     <td className="px-2 py-3 align-middle">

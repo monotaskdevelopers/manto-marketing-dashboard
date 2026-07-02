@@ -21,8 +21,9 @@ The tool should reduce manual spreadsheet compilation and make it easier to answ
 
 ## MVP Scope
 
-Current implementation note: the reporting pages are intentionally blank during the UI redesign reset,
-except for Settings. The scope below remains the target product scope for the rebuilt pages.
+Current implementation note: most reporting pages are intentionally blank during the UI redesign reset.
+Settings remains operational, and Campaigns and Flows have rebuilt UI scaffolds. The scope below remains
+the target product scope for the rebuilt pages.
 
 In scope:
 
