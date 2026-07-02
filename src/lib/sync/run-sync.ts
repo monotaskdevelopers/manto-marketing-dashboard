@@ -54,9 +54,73 @@ function sanitizeError(error: unknown) {
   const message = error instanceof Error ? error.message : "Unknown sync error.";
 
   return message
+    .replace(/Klaviyo-API-Key\s+[^\s,"']+/gi, "Klaviyo-API-Key [redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]")
     .replace(/shpat_[A-Za-z0-9_-]+/g, "[redacted-shopify-token]")
     .replace(/pk_[A-Za-z0-9_-]+/g, "[redacted-klaviyo-key]")
+    .replace(/sb_secret_[A-Za-z0-9_-]+/g, "[redacted-supabase-secret]")
     .slice(0, 900);
+}
+
+function readErrorProperty(error: unknown, key: "code" | "message" | "details" | "hint") {
+  if (!error || typeof error !== "object" || !(key in error)) {
+    return "";
+  }
+
+  const value = (error as Record<string, unknown>)[key];
+  return typeof value === "string" ? sanitizeError(value) : "";
+}
+
+function summarizeDatabaseError(error: unknown) {
+  const parts = [
+    ["code", readErrorProperty(error, "code")],
+    ["message", readErrorProperty(error, "message")],
+    ["details", readErrorProperty(error, "details")],
+    ["hint", readErrorProperty(error, "hint")],
+  ].filter(([, value]) => value);
+
+  if (!parts.length) {
+    return sanitizeError(error);
+  }
+
+  return parts.map(([label, value]) => `${label}=${value}`).join("; ").slice(0, 900);
+}
+
+async function upsertSyncRows(params: {
+  table: string;
+  rows: Record<string, unknown>[];
+  conflictTarget: string;
+  regionSlug: string;
+  syncRunId: string;
+}) {
+  if (!params.rows.length) {
+    console.info(
+      `[sync:db] Skipping ${params.table} upsert for region ${params.regionSlug} in run ${params.syncRunId}; no rows.`,
+    );
+    return;
+  }
+
+  const admin = getSupabaseAdmin();
+
+  console.info(
+    `[sync:db] Upserting ${params.rows.length} ${params.table} row(s) for region ${params.regionSlug} in run ${params.syncRunId} using ${params.conflictTarget}.`,
+  );
+
+  const { error } = await admin
+    .from(params.table)
+    .upsert(params.rows, { onConflict: params.conflictTarget });
+
+  if (error) {
+    const summary = summarizeDatabaseError(error);
+    console.warn(
+      `[sync:db] Failed to upsert ${params.table} for region ${params.regionSlug} in run ${params.syncRunId}. ${summary}`,
+    );
+    throw new Error(`Unable to write ${params.table} rows for region ${params.regionSlug}. ${summary}`);
+  }
+
+  console.info(
+    `[sync:db] Upserted ${params.rows.length} ${params.table} row(s) for region ${params.regionSlug} in run ${params.syncRunId}.`,
+  );
 }
 
 function hasShopifyCredentials(region: RegionIntegrationConfig): region is RegionIntegrationConfig & {
@@ -227,7 +291,6 @@ async function syncRegion(params: {
   startDate: string;
   endDate: string;
 }): Promise<{ status: "success" | "partial"; errors: string[] }> {
-  const admin = getSupabaseAdmin();
   const now = new Date().toISOString();
 
   console.info(`[sync] Region ${params.region.slug} started for run ${params.syncRunId}.`);
@@ -244,20 +307,17 @@ async function syncRegion(params: {
         endDate: params.endDate,
       });
 
-      if (shopifyRows.length) {
-        const { error } = await admin.from("shopify_daily_metrics").upsert(
-          shopifyRows.map((row) => ({
-            ...row,
-            region_id: params.regionId,
-            updated_at: now,
-          })),
-          { onConflict: "region_id,metric_date" },
-        );
-
-        if (error) {
-          throw new Error(`Unable to write Shopify rows for region ${params.region.slug}.`);
-        }
-      }
+      await upsertSyncRows({
+        table: "shopify_daily_metrics",
+        rows: shopifyRows.map((row) => ({
+          ...row,
+          region_id: params.regionId,
+          updated_at: now,
+        })),
+        conflictTarget: "region_id,metric_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
 
       syncedPlatforms.push("Shopify");
     } catch (error) {
@@ -281,35 +341,29 @@ async function syncRegion(params: {
         }),
       ]);
 
-      if (campaignRows.length) {
-        const { error } = await admin.from("klaviyo_campaign_reports").upsert(
-          campaignRows.map((row) => ({
-            ...row,
-            region_id: params.regionId,
-            updated_at: now,
-          })),
-          { onConflict: "region_id,campaign_id,send_date" },
-        );
+      await upsertSyncRows({
+        table: "klaviyo_campaign_reports",
+        rows: campaignRows.map((row) => ({
+          ...row,
+          region_id: params.regionId,
+          updated_at: now,
+        })),
+        conflictTarget: "region_id,campaign_id,send_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
 
-        if (error) {
-          throw new Error(`Unable to write campaign rows for region ${params.region.slug}.`);
-        }
-      }
-
-      if (flowRows.length) {
-        const { error } = await admin.from("klaviyo_flow_reports").upsert(
-          flowRows.map((row) => ({
-            ...row,
-            region_id: params.regionId,
-            updated_at: now,
-          })),
-          { onConflict: "region_id,flow_id,metric_date" },
-        );
-
-        if (error) {
-          throw new Error(`Unable to write flow rows for region ${params.region.slug}.`);
-        }
-      }
+      await upsertSyncRows({
+        table: "klaviyo_flow_reports",
+        rows: flowRows.map((row) => ({
+          ...row,
+          region_id: params.regionId,
+          updated_at: now,
+        })),
+        conflictTarget: "region_id,flow_id,metric_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
 
       const dailyRows = aggregateKlaviyoDaily({
         region: params.region,
@@ -317,20 +371,17 @@ async function syncRegion(params: {
         flows: flowRows,
       });
 
-      if (dailyRows.length) {
-        const { error } = await admin.from("klaviyo_daily_metrics").upsert(
-          dailyRows.map((row) => ({
-            ...row,
-            region_id: params.regionId,
-            updated_at: now,
-          })),
-          { onConflict: "region_id,metric_date" },
-        );
-
-        if (error) {
-          throw new Error(`Unable to write Klaviyo daily rows for region ${params.region.slug}.`);
-        }
-      }
+      await upsertSyncRows({
+        table: "klaviyo_daily_metrics",
+        rows: dailyRows.map((row) => ({
+          ...row,
+          region_id: params.regionId,
+          updated_at: now,
+        })),
+        conflictTarget: "region_id,metric_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
 
       syncedPlatforms.push("Klaviyo");
     } catch (error) {

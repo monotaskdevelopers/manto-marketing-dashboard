@@ -16,6 +16,27 @@ export type DataTableColumn<T> = {
   align?: "left" | "right";
 };
 
+function getStableRowKey<T>(row: T, rowIndex: number) {
+  if (row && typeof row === "object") {
+    const record = row as Record<string, unknown>;
+
+    // Prefer database IDs when present so row hover/focus state stays stable as filters change.
+    if (typeof record.id === "string") {
+      return record.id;
+    }
+
+    if (record.region && typeof record.region === "object") {
+      const region = record.region as Record<string, unknown>;
+
+      if (typeof region.id === "string") {
+        return region.id;
+      }
+    }
+  }
+
+  return rowIndex;
+}
+
 export function DataTable<T>({
   columns,
   rows,
@@ -57,7 +78,7 @@ export function DataTable<T>({
             {rows.length ? (
               rows.map((row, rowIndex) => (
                 <tr
-                  key={rowIndex}
+                  key={getStableRowKey(row, rowIndex)}
                   className="transition duration-150 odd:bg-white even:bg-slate-50/45 hover:bg-teal-50/55"
                 >
                   {columns.map((column) => (

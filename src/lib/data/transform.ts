@@ -10,6 +10,7 @@ import type {
   KlaviyoCampaignReport,
   KlaviyoDailyMetric,
   KlaviyoFlowReport,
+  KlaviyoTrendPoint,
   RegionRow,
   RegionalSummary,
   ShopifyDailyMetric,
@@ -43,6 +44,9 @@ function emptySummary(region: RegionRow): RegionalSummary {
     opens: 0,
     clicks: 0,
     conversions: 0,
+    unsubscribes: 0,
+    bounces: 0,
+    spamComplaints: 0,
   };
 }
 
@@ -89,6 +93,9 @@ function buildSummaryRows(
     summary.opens += Number(row.opens_count || 0);
     summary.clicks += Number(row.clicks_count || 0);
     summary.conversions += Number(row.conversions_count || 0);
+    summary.unsubscribes += Number(row.unsubscribes_count || 0);
+    summary.bounces += Number(row.bounces_count || 0);
+    summary.spamComplaints += Number(row.spam_complaints_count || 0);
   });
 
   return Array.from(summaries.values());
@@ -121,6 +128,9 @@ function rollUpSummary(regionalSummaries: RegionalSummary[]): RegionalSummary {
     total.opens += region.opens;
     total.clicks += region.clicks;
     total.conversions += region.conversions;
+    total.unsubscribes += region.unsubscribes;
+    total.bounces += region.bounces;
+    total.spamComplaints += region.spamComplaints;
     return total;
   }, emptySummary({ ...firstRegion, id: "all", slug: "all", name: "All Regions" }));
 }
@@ -153,6 +163,41 @@ function buildTrend(
     };
 
     point.klaviyoRevenue += Number(row.attributed_revenue_amount || 0);
+    trend.set(row.metric_date, point);
+  });
+
+  return Array.from(trend.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function buildKlaviyoTrend(klaviyoRows: KlaviyoDailyMetric[]): KlaviyoTrendPoint[] {
+  const trend = new Map<string, KlaviyoTrendPoint>();
+
+  klaviyoRows.forEach((row) => {
+    const point = trend.get(row.metric_date) || {
+      date: row.metric_date,
+      campaignRevenue: 0,
+      flowRevenue: 0,
+      attributedRevenue: 0,
+      recipients: 0,
+      opens: 0,
+      clicks: 0,
+      conversions: 0,
+      unsubscribes: 0,
+      bounces: 0,
+      spamComplaints: 0,
+    };
+
+    // Keep the daily grain intact so charts can show both revenue mix and engagement movement.
+    point.campaignRevenue += Number(row.campaign_revenue_amount || 0);
+    point.flowRevenue += Number(row.flow_revenue_amount || 0);
+    point.attributedRevenue += Number(row.attributed_revenue_amount || 0);
+    point.recipients += Number(row.recipients_count || 0);
+    point.opens += Number(row.opens_count || 0);
+    point.clicks += Number(row.clicks_count || 0);
+    point.conversions += Number(row.conversions_count || 0);
+    point.unsubscribes += Number(row.unsubscribes_count || 0);
+    point.bounces += Number(row.bounces_count || 0);
+    point.spamComplaints += Number(row.spam_complaints_count || 0);
     trend.set(row.metric_date, point);
   });
 
@@ -213,6 +258,7 @@ export function buildDashboardDataFromRows(input: DashboardRowInput): DashboardD
     summary: rollUpSummary(regionalSummaries),
     regionalSummaries,
     trend: buildTrend(shopifyRows, klaviyoRows),
+    klaviyoTrend: buildKlaviyoTrend(klaviyoRows),
     topCampaigns: rankedCampaigns.slice(0, 5),
     topFlows: rankedFlows.slice(0, 5),
     campaignRows: rankedCampaigns,

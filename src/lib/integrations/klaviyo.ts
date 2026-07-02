@@ -1,7 +1,8 @@
 /*
 File description:
 This file contains the server-only Klaviyo Reporting API integration. It calls campaign and flow report
-endpoints, normalizes flexible response shapes into dashboard rows, and avoids logging raw API payloads.
+endpoints, normalizes flexible response shapes into dashboard rows, collapses Klaviyo message-level report
+groups to the database's campaign/date and flow/date grain, and avoids logging raw API payloads.
 */
 
 import "server-only";
@@ -46,6 +47,19 @@ type KlaviyoMetricCandidate = {
   integrationCategory: string;
 };
 
+type KlaviyoReportType = "campaign-values-report" | "flow-values-report";
+
+const klaviyoReportingStatistics = [
+  "recipients",
+  "opens",
+  "clicks",
+  "conversions",
+  "conversion_value",
+  "unsubscribes",
+  "bounced",
+  "spam_complaints",
+];
+
 function asRecord(value: unknown): KlaviyoJson {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as KlaviyoJson)
@@ -81,33 +95,128 @@ function readNumber(source: KlaviyoJson, keys: string[]) {
   return 0;
 }
 
+function parseJsonText(text: string) {
+  if (!text.trim()) {
+    return {};
+  }
+
+  try {
+    return asRecord(JSON.parse(text) as unknown);
+  } catch {
+    return {};
+  }
+}
+
+function sanitizeLogText(value: string) {
+  return value
+    .replace(/Klaviyo-API-Key\s+[^\s,"']+/gi, "Klaviyo-API-Key [redacted]")
+    .replace(/pk_[A-Za-z0-9_-]+/g, "[redacted-klaviyo-key]")
+    .replace(/shpat_[A-Za-z0-9_-]+/g, "[redacted-shopify-token]");
+}
+
+function summarizeKlaviyoErrors(payload: KlaviyoJson, fallbackText: string) {
+  const errors = asArray(payload.errors)
+    .slice(0, 3)
+    .map((error) => {
+      const record = asRecord(error);
+      const source = asRecord(record.source);
+
+      return {
+        status: readString(record, ["status"], ""),
+        code: readString(record, ["code"], ""),
+        title: readString(record, ["title"], ""),
+        detail: sanitizeLogText(readString(record, ["detail"], "")).slice(0, 280),
+        sourcePointer: readString(source, ["pointer"], ""),
+        sourceParameter: readString(source, ["parameter"], ""),
+      };
+    });
+
+  if (errors.length) {
+    return JSON.stringify({ errors });
+  }
+
+  return fallbackText.trim()
+    ? "Klaviyo returned a non-JSON error body."
+    : "Klaviyo returned an empty error body.";
+}
+
+function describeReportRequest(body: KlaviyoJson) {
+  const data = asRecord(body.data);
+  const attributes = asRecord(data.attributes);
+  const timeframe = asRecord(attributes.timeframe);
+
+  return {
+    reportType: readString(data, ["type"], "unknown-report"),
+    start: readString(timeframe, ["start"], "unknown-start"),
+    end: readString(timeframe, ["end"], "unknown-end"),
+    statistics: asArray(attributes.statistics).filter((item): item is string => typeof item === "string"),
+    groupBy: asArray(attributes.group_by).filter((item): item is string => typeof item === "string"),
+    hasConversionMetricId: Boolean(readString(attributes, ["conversion_metric_id"], "")),
+  };
+}
+
+function groupByForReport(reportType: KlaviyoReportType) {
+  if (reportType === "campaign-values-report") {
+    return ["campaign_id", "campaign_message_id", "campaign_message_name", "send_channel"];
+  }
+
+  return ["flow_id", "flow_message_id", "flow_name", "flow_message_name", "send_channel"];
+}
+
 async function klaviyoRequest(params: {
   region: KlaviyoRegionConfig;
   path: string;
   body: KlaviyoJson;
 }) {
+  const revision = getKlaviyoRevision();
+  const requestDescription = describeReportRequest(params.body);
+
+  console.info(
+    `[sync:klaviyo] Requesting ${params.path} for region ${params.region.slug} using revision ${revision}. ` +
+      `Window ${requestDescription.start} to ${requestDescription.end}; ` +
+      `stats=${requestDescription.statistics.join(",")}; group_by=${requestDescription.groupBy.join(",")}; ` +
+      `conversion_metric_id=${requestDescription.hasConversionMetricId ? "present" : "missing"}.`,
+  );
+
   const response = await fetch(`https://a.klaviyo.com/api/${params.path}`, {
     method: "POST",
     headers: {
       Authorization: `Klaviyo-API-Key ${params.region.klaviyoPrivateKey}`,
       Accept: "application/vnd.api+json",
       "Content-Type": "application/vnd.api+json",
-      revision: getKlaviyoRevision(),
+      revision,
     },
     body: JSON.stringify(params.body),
   });
 
+  const responseText = await response.text();
+  const payload = parseJsonText(responseText);
+
   if (response.status === 429) {
-    console.warn(`[sync:klaviyo] Rate limited for region ${params.region.slug}.`);
-    throw new Error(`Klaviyo rate limit hit for region ${params.region.slug}.`);
+    const summary = summarizeKlaviyoErrors(payload, responseText);
+    console.warn(
+      `[sync:klaviyo] Rate limited for region ${params.region.slug} on ${params.path}. ${summary}`,
+    );
+    throw new Error(`Klaviyo rate limit hit for region ${params.region.slug} on ${params.path}. ${summary}`);
   }
 
   if (!response.ok) {
-    console.warn(`[sync:klaviyo] Request failed for region ${params.region.slug}: ${response.status}.`);
-    throw new Error(`Klaviyo request failed for region ${params.region.slug}.`);
+    const summary = summarizeKlaviyoErrors(payload, responseText);
+    console.warn(
+      `[sync:klaviyo] Request failed for region ${params.region.slug} on ${params.path}: ${response.status}. ${summary}`,
+    );
+    throw new Error(
+      `Klaviyo request failed for region ${params.region.slug} on ${params.path} with status ${response.status}. ${summary}`,
+    );
   }
 
-  return (await response.json()) as KlaviyoJson;
+  console.info(
+    `[sync:klaviyo] Request succeeded for region ${params.region.slug} on ${params.path} with ${extractResults(
+      payload,
+    ).length} result group(s).`,
+  );
+
+  return payload;
 }
 
 async function klaviyoGetRequest(params: {
@@ -143,7 +252,7 @@ async function klaviyoGetRequest(params: {
 }
 
 function buildReportBody(params: {
-  reportType: "campaign-values-report" | "flow-values-report";
+  reportType: KlaviyoReportType;
   startDate: string;
   endDate: string;
   conversionMetricId?: string;
@@ -153,19 +262,11 @@ function buildReportBody(params: {
       start: `${params.startDate}T00:00:00Z`,
       end: `${params.endDate}T23:59:59Z`,
     },
-    statistics: [
-      "recipients",
-      "opens",
-      "clicks",
-      "conversions",
-      "conversion_value",
-      "unsubscribes",
-      "bounces",
-      "spam_complaints",
-    ],
+    group_by: groupByForReport(params.reportType),
+    statistics: klaviyoReportingStatistics,
   };
 
-  // Some Klaviyo accounts require an explicit conversion metric for attributed revenue.
+  // Klaviyo's reporting endpoints need the account's revenue metric to calculate conversions and revenue.
   if (params.conversionMetricId) {
     attributes.conversion_metric_id = params.conversionMetricId;
   }
@@ -192,18 +293,88 @@ function extractResults(payload: KlaviyoJson) {
 
 function normalizeResult(value: unknown) {
   const record = asRecord(value);
-  const attributes = asRecord(record.attributes);
+  const recordAttributes = asRecord(record.attributes);
+  const groupings = asRecord(record.groupings);
+  const attributes = {
+    ...groupings,
+    ...recordAttributes,
+  };
   const stats = {
-    ...asRecord(attributes.statistics),
-    ...asRecord(attributes.stats),
-    ...attributes,
+    // Keep support for older test fixtures or API variants that flatten statistic values onto attributes.
+    ...recordAttributes,
+    ...asRecord(record.statistics),
+    ...asRecord(record.stats),
+    ...asRecord(recordAttributes.statistics),
+    ...asRecord(recordAttributes.stats),
   };
 
   return {
-    id: readString(record, ["id"], ""),
+    id: readString(record, ["id"], readString(groupings, ["campaign_id", "flow_id"], "")),
     attributes,
     stats,
   };
+}
+
+function mergeCampaignRows(rows: KlaviyoCampaignSyncRow[], regionSlug: string) {
+  const merged = new Map<string, KlaviyoCampaignSyncRow>();
+
+  rows.forEach((row) => {
+    const key = `${row.campaign_id}:${row.send_date}`;
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, { ...row });
+      return;
+    }
+
+    // Klaviyo reports can return one row per message or send channel; this app stores one campaign/date row.
+    existing.recipients_count += row.recipients_count;
+    existing.opens_count += row.opens_count;
+    existing.clicks_count += row.clicks_count;
+    existing.conversions_count += row.conversions_count;
+    existing.revenue_amount += row.revenue_amount;
+
+    if (existing.campaign_name === `Campaign ${existing.campaign_id}` && row.campaign_name) {
+      existing.campaign_name = row.campaign_name;
+    }
+  });
+
+  console.info(
+    `[sync:klaviyo] Normalized campaign groups for region ${regionSlug} from ${rows.length} result group(s) to ${merged.size} campaign/date row(s).`,
+  );
+
+  return Array.from(merged.values());
+}
+
+function mergeFlowRows(rows: KlaviyoFlowSyncRow[], regionSlug: string) {
+  const merged = new Map<string, KlaviyoFlowSyncRow>();
+
+  rows.forEach((row) => {
+    const key = `${row.flow_id}:${row.metric_date}`;
+    const existing = merged.get(key);
+
+    if (!existing) {
+      merged.set(key, { ...row });
+      return;
+    }
+
+    // Klaviyo reports can return one row per flow message; this app stores one flow/date row.
+    existing.recipients_count += row.recipients_count;
+    existing.opens_count += row.opens_count;
+    existing.clicks_count += row.clicks_count;
+    existing.conversions_count += row.conversions_count;
+    existing.revenue_amount += row.revenue_amount;
+
+    if (existing.flow_name === `Flow ${existing.flow_id}` && row.flow_name) {
+      existing.flow_name = row.flow_name;
+    }
+  });
+
+  console.info(
+    `[sync:klaviyo] Normalized flow groups for region ${regionSlug} from ${rows.length} result group(s) to ${merged.size} flow/date row(s).`,
+  );
+
+  return Array.from(merged.values());
 }
 
 function metricFromResponseItem(value: unknown): KlaviyoMetricCandidate | null {
@@ -314,7 +485,7 @@ export async function fetchKlaviyoCampaignReports(params: {
     }),
   });
 
-  const rows = extractResults(payload).map((result, index) => {
+  const rawRows = extractResults(payload).map((result, index) => {
     const normalized = normalizeResult(result);
     const campaignId = readString(
       normalized.attributes,
@@ -326,18 +497,23 @@ export async function fetchKlaviyoCampaignReports(params: {
       campaign_id: campaignId,
       campaign_name: readString(
         normalized.attributes,
-        ["campaign_name", "campaignName", "name"],
+        ["campaign_name", "campaign_message_name", "campaignName", "name"],
         `Campaign ${campaignId}`,
       ),
       send_date: readString(
         normalized.attributes,
-        ["send_date", "sendDate", "scheduled_at", "sent_at", "date"],
+        ["send_date", "sendDate", "scheduled_at", "sent_at", "date", "datetime"],
         params.endDate,
       ).slice(0, 10),
       recipients_count: readNumber(normalized.stats, ["recipients", "delivered", "sent"]),
-      opens_count: readNumber(normalized.stats, ["opens", "unique_opens", "opened"]),
-      clicks_count: readNumber(normalized.stats, ["clicks", "unique_clicks", "clicked"]),
-      conversions_count: readNumber(normalized.stats, ["conversions", "orders", "placed_order"]),
+      opens_count: readNumber(normalized.stats, ["opens", "opens_unique", "unique_opens", "opened"]),
+      clicks_count: readNumber(normalized.stats, ["clicks", "clicks_unique", "unique_clicks", "clicked"]),
+      conversions_count: readNumber(normalized.stats, [
+        "conversions",
+        "conversion_uniques",
+        "orders",
+        "placed_order",
+      ]),
       revenue_amount: readNumber(normalized.stats, [
         "conversion_value",
         "revenue",
@@ -347,9 +523,10 @@ export async function fetchKlaviyoCampaignReports(params: {
       currency_code: params.region.currencyCode,
     };
   });
+  const rows = mergeCampaignRows(rawRows, params.region.slug);
 
   console.info(
-    `[sync:klaviyo] Completed campaign report sync for region ${params.region.slug} with ${rows.length} rows.`,
+    `[sync:klaviyo] Completed campaign report sync for region ${params.region.slug} with ${rows.length} database row(s).`,
   );
 
   return rows;
@@ -373,7 +550,7 @@ export async function fetchKlaviyoFlowReports(params: {
     }),
   });
 
-  const rows = extractResults(payload).map((result, index) => {
+  const rawRows = extractResults(payload).map((result, index) => {
     const normalized = normalizeResult(result);
     const flowId = readString(
       normalized.attributes,
@@ -383,15 +560,25 @@ export async function fetchKlaviyoFlowReports(params: {
 
     return {
       flow_id: flowId,
-      flow_name: readString(normalized.attributes, ["flow_name", "flowName", "name"], `Flow ${flowId}`),
-      metric_date: readString(normalized.attributes, ["date", "metric_date", "updated"], params.endDate).slice(
-        0,
-        10,
+      flow_name: readString(
+        normalized.attributes,
+        ["flow_name", "flow_message_name", "flowName", "name"],
+        `Flow ${flowId}`,
       ),
+      metric_date: readString(
+        normalized.attributes,
+        ["date", "metric_date", "updated", "datetime"],
+        params.endDate,
+      ).slice(0, 10),
       recipients_count: readNumber(normalized.stats, ["recipients", "delivered", "sent"]),
-      opens_count: readNumber(normalized.stats, ["opens", "unique_opens", "opened"]),
-      clicks_count: readNumber(normalized.stats, ["clicks", "unique_clicks", "clicked"]),
-      conversions_count: readNumber(normalized.stats, ["conversions", "orders", "placed_order"]),
+      opens_count: readNumber(normalized.stats, ["opens", "opens_unique", "unique_opens", "opened"]),
+      clicks_count: readNumber(normalized.stats, ["clicks", "clicks_unique", "unique_clicks", "clicked"]),
+      conversions_count: readNumber(normalized.stats, [
+        "conversions",
+        "conversion_uniques",
+        "orders",
+        "placed_order",
+      ]),
       revenue_amount: readNumber(normalized.stats, [
         "conversion_value",
         "revenue",
@@ -401,9 +588,10 @@ export async function fetchKlaviyoFlowReports(params: {
       currency_code: params.region.currencyCode,
     };
   });
+  const rows = mergeFlowRows(rawRows, params.region.slug);
 
   console.info(
-    `[sync:klaviyo] Completed flow report sync for region ${params.region.slug} with ${rows.length} rows.`,
+    `[sync:klaviyo] Completed flow report sync for region ${params.region.slug} with ${rows.length} database row(s).`,
   );
 
   return rows;

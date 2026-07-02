@@ -29,6 +29,10 @@ Give internal users a fast summary of Shopify and Klaviyo performance across sel
 
 - Region filter.
 - Date range filter.
+- Carded filter controls using shared custom select and date input components.
+- Plain-language tooltip explanations on every KPI card.
+- Plain-language tooltip explanations on each table column.
+- Revenue trend tooltip explaining Shopify bars and Klaviyo overlay calculation.
 - Last sync status.
 - Manual sync action.
 

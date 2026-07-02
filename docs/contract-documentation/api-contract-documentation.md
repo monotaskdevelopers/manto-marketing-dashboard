@@ -149,5 +149,11 @@ Important safeguards:
 
 - Use one API revision constant.
 - Respect low reporting endpoint rate limits.
+- Request `bounced`, not `bounces`, because Klaviyo's campaign and flow values endpoints reject invalid statistic names.
+- Include endpoint-required `group_by` fields for campaign and flow reports.
+- Parse report `groupings` and `statistics` objects before writing normalized rows.
+- Collapse Klaviyo message/channel result groups into campaign/date and flow/date rows before Supabase upsert,
+  matching `klaviyo_campaign_reports` and `klaviyo_flow_reports` unique constraints.
+- Log only sanitized request metadata and JSON:API error summaries for debugging 400, 401, 403, 429, and 5xx responses.
 - Normalize response fields before database writes.
 - Do not expose private keys to the browser.

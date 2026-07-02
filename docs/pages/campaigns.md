@@ -28,6 +28,9 @@ Help the team identify top-performing and underperforming Klaviyo campaigns acro
 - Date range filter.
 - Region filter.
 - Sortable reporting-oriented table structure.
+- Shared carded filter controls.
+- Plain-language tooltip explanations on every campaign KPI and table column.
+- Cleaner table styling with aligned metric columns and mobile-safe horizontal scrolling.
 
 ## Security Concerns
 

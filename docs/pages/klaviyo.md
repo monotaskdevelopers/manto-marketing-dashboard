@@ -30,6 +30,9 @@ Show email marketing performance from Klaviyo across campaigns and flows.
 - Region filter.
 - Top campaigns.
 - Top flows.
+- Shared carded filter controls.
+- Plain-language tooltip explanations on every Klaviyo KPI and table column.
+- Cleaner campaign and flow tables with aligned numeric rates and revenue values.
 
 ## Security Concerns
 

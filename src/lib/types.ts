@@ -142,6 +142,9 @@ export type RegionalSummary = {
   opens: number;
   clicks: number;
   conversions: number;
+  unsubscribes: number;
+  bounces: number;
+  spamComplaints: number;
 };
 
 export type TrendPoint = {
@@ -149,6 +152,20 @@ export type TrendPoint = {
   shopifyRevenue: number;
   klaviyoRevenue: number;
   orders: number;
+};
+
+export type KlaviyoTrendPoint = {
+  date: string;
+  campaignRevenue: number;
+  flowRevenue: number;
+  attributedRevenue: number;
+  recipients: number;
+  opens: number;
+  clicks: number;
+  conversions: number;
+  unsubscribes: number;
+  bounces: number;
+  spamComplaints: number;
 };
 
 export type RankedCampaign = KlaviyoCampaignReport & {
@@ -175,6 +192,7 @@ export type DashboardData = {
   summary: RegionalSummary;
   regionalSummaries: RegionalSummary[];
   trend: TrendPoint[];
+  klaviyoTrend: KlaviyoTrendPoint[];
   topCampaigns: RankedCampaign[];
   topFlows: RankedFlow[];
   campaignRows: RankedCampaign[];

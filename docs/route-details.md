@@ -10,7 +10,7 @@ or route handlers are added, removed, renamed, or materially changed.
 
 | Route | Purpose | How it works | Importance |
 | --- | --- | --- | --- |
-| `/login` | Internal user sign-in | Uses Supabase email/password authentication. | Critical |
+| `/login` | Internal user sign-in | Uses Supabase email/password authentication through a minimal internal sign-in form. | Critical |
 | `/` | Overview dashboard | Shows high-level Shopify and Klaviyo metrics using URL filters. | Critical |
 | `/regional` | Regional comparison | Compares revenue, orders, AOV, and Klaviyo contribution by region. | High |
 | `/shopify` | Shopify reporting | Shows ecommerce revenue, orders, AOV, customers, and trend data. | High |

@@ -31,6 +31,7 @@ Klaviyo platform connections without editing environment JSON.
 - Lets users save Shopify and Klaviyo independently instead of requiring both credentials at the same time.
 - Guides users through each provider setup in a focused popup modal before showing the save form.
 - Validates timezone values as IANA timezones and gives users a dropdown instead of free text.
+- Uses shared pill-shaped buttons, styled native inputs, and a custom-styled timezone dropdown wrapper.
 - Tries to detect a Klaviyo conversion metric ID from the connected account using Klaviyo's Metrics API,
   without blocking encrypted key storage if metric lookup is denied.
 - Never shows saved secrets back to the browser.

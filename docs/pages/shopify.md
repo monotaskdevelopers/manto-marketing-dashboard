@@ -27,6 +27,9 @@ Show ecommerce performance from Shopify as the source of truth for actual sales 
 - Region filter.
 - Trend bars.
 - Summary KPIs.
+- Shared carded filter controls.
+- Plain-language tooltip explanations on every Shopify KPI, trend, and table column.
+- Regional table with clearer row separation, numeric alignment, and mobile-safe horizontal scrolling.
 
 ## Security Concerns
 

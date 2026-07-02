@@ -49,6 +49,12 @@ Next.js and Vercel:
 - Klaviyo metric aggregate queries can support broader event rollups, but the MVP should prefer campaign and flow reporting endpoints for campaign/flow tables.
 - Klaviyo private keys authenticate server-side `/api` requests and should not be exposed in client-side code.
 - The campaign report endpoint requires `campaigns:read`; the flow report endpoint requires `flows:read`.
+- Campaign and flow report requests should use the statistic name `bounced`; `bounces` is not accepted by
+  the Reporting API.
+- Campaign and flow report responses group row identifiers under `groupings` and numeric metrics under
+  `statistics`, so sync normalization must read both objects instead of assuming flat attributes.
+- Campaign and flow reports can return multiple message or channel result groups for one logical
+  campaign/date or flow/date row in our schema.
 - The Metrics API can return metric `id`, `name`, and `integration`; use it to automatically detect the conversion metric ID after a Klaviyo key is saved.
 - Klaviyo's Metrics API requires `metrics:read`, can filter by integration, and returns up to 200 metrics per page.
 - A missing `metrics:read` scope should not block saving a Klaviyo key because campaign and flow sync only need their reporting scopes.
@@ -60,6 +66,10 @@ Decision:
 - Keep the API revision in one constant so it can be upgraded deliberately.
 - Store normalized daily and item-level reports locally in Supabase so the UI does not repeatedly hit Klaviyo.
 - Do not ask users to paste a conversion metric ID manually; detect it server-side from the connected Klaviyo account when `metrics:read` is available.
+- Collapse Klaviyo message/channel result groups into the existing campaign/date and flow/date table grain
+  before writing to Supabase instead of expanding the MVP schema to message-level reporting.
+- Keep Klaviyo request and failure logs sanitized, but include endpoint path, revision, date window,
+  statistics, group-by fields, conversion metric presence, HTTP status, and JSON:API error summaries.
 
 ### Shopify
 

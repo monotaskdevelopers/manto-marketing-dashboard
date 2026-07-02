@@ -251,6 +251,38 @@ Authorization: Klaviyo-API-Key {private key with metrics:read}
 revision: 2026-04-15
 ```
 
+## Klaviyo Reporting Request Shape
+
+Campaign sync calls:
+
+```http
+POST https://a.klaviyo.com/api/campaign-values-reports
+```
+
+with `data.type=campaign-values-report`, `group_by` containing `campaign_id`, `campaign_message_id`,
+`campaign_message_name`, and `send_channel`, and statistics including `recipients`, `opens`, `clicks`,
+`conversions`, `conversion_value`, `unsubscribes`, `bounced`, and `spam_complaints`.
+
+Flow sync calls:
+
+```http
+POST https://a.klaviyo.com/api/flow-values-reports
+```
+
+with `data.type=flow-values-report`, `group_by` containing `flow_id`, `flow_message_id`, `flow_name`,
+`flow_message_name`, and `send_channel`, and the same statistics list.
+
+Important implementation detail:
+
+- Klaviyo's Reporting API statistic is `bounced`, not `bounces`.
+- Klaviyo returns report rows under `groupings` and `statistics`; sync normalization must read both.
+- Klaviyo returns message-level or channel-level result groups, while this app stores campaign/date and
+  flow/date rows. Sync must collapse duplicate campaign/date and flow/date groups before Supabase upsert.
+- Reporting requests should include the auto-detected `conversion_metric_id` so conversion and revenue
+  statistics can be calculated.
+- Debug logs should show only sanitized request metadata, normalization counts, Supabase write counts,
+  and sanitized JSON:API or database error details.
+
 ## Disconnect Behavior
 
 Disconnecting a platform should:
@@ -319,6 +351,11 @@ Check:
 - Private key belongs to the correct account.
 - Key has `campaigns:read` and `flows:read`; add `metrics:read` if conversion metric detection is missing.
 - `KLAVIYO_REVISION` is supported.
+- Logs show `conversion_metric_id=present`; reconnect Klaviyo with `metrics:read` if the metric was not detected.
+- Logs show requested statistics include `bounced`, not `bounces`.
+- Logs show `group_by` includes the required campaign or flow ID fields for the endpoint.
+- Logs show campaign and flow result groups being normalized into campaign/date and flow/date database rows.
+- Logs show which Supabase table write failed, if any, plus sanitized PostgREST code/message/details/hint.
 - The account has campaign or flow data in the selected date range.
 - The Settings save step stored an encrypted Klaviyo key in `platform_connections`; reconnect Klaviyo if only the region label exists.
 

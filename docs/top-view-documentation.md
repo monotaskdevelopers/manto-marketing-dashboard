@@ -31,6 +31,7 @@ This project is a basic internal reporting dashboard that combines Shopify sales
 | `/docs/console-logs-update.md` | Console log registry | Intentional non-PII console logs created for debugging sync behavior. |
 | `/docs/tests.md` | Temporary/testing register | Demo mode, test-only switches, and temporary behavior that must be reviewed before production. |
 | `/docs/components.md` | Component inventory | Reusable components, file paths, and one-line descriptions. |
+| `/docs/pages/login.md` | Login page doc | Purpose, contents, features, risks, and known gaps for the internal sign-in page. |
 | `/docs/pages/overview.md` | Overview page doc | Purpose, contents, features, risks, and known gaps for the main dashboard page. |
 | `/docs/pages/regional-performance.md` | Regional page doc | Purpose, contents, features, risks, and known gaps for region comparison. |
 | `/docs/pages/shopify.md` | Shopify page doc | Purpose, contents, features, risks, and known gaps for ecommerce reporting. |

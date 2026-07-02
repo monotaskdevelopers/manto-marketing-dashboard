@@ -26,6 +26,9 @@ Help the team understand which automated Klaviyo flows are driving revenue and e
 - Date range filter.
 - Region filter.
 - Flow performance table.
+- Shared carded filter controls.
+- Plain-language tooltip explanations on every flow KPI and table column.
+- Cleaner table styling with aligned metric columns and mobile-safe horizontal scrolling.
 
 ## Security Concerns
 
