@@ -18,6 +18,7 @@ This project is a basic internal reporting dashboard that combines Shopify sales
 | --- | --- | --- |
 | `/docs/product-requirements.md` | Product source of truth | PRD summary, MVP boundaries, user goals, page requirements, success criteria, and known open questions. |
 | `/docs/research-and-decisions.md` | Research record | Official-source research for Klaviyo, Shopify, Supabase, Next.js, and Vercel Cron, plus the architecture decisions that came from that research. |
+| `/docs/platform-connections.md` | Platform connection guide | Developer setup for Shopify, Klaviyo, Supabase secrets, region config, smoke tests, sync flow, troubleshooting, and token rotation. |
 | `/docs/implementation-plan.md` | Build plan | Layman explanation, technical sequence, implementation phases, data flow, and execution checklist. |
 | `/docs/db-plan.md` | Database plan | Tables, indexes, RLS posture, schema naming, migrations, and data retention assumptions. |
 | `/docs/contract-documentation/api-contract-documentation.md` | API contract index | Route handlers, methods, auth requirements, request/response shapes, and criticality. |

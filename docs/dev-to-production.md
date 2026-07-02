@@ -26,6 +26,9 @@ Optional Klaviyo variable:
 
 ## `REGION_CONFIG_JSON` Shape
 
+For the full platform connection guide, required scopes, smoke tests, and troubleshooting flow, see
+`/docs/platform-connections.md`.
+
 ```json
 [
   {
@@ -36,7 +39,8 @@ Optional Klaviyo variable:
     "shopifyShopDomain": "example.myshopify.com",
     "shopifyAdminAccessToken": "shpat_xxx",
     "klaviyoPrivateKey": "pk_xxx",
-    "klaviyoAccountLabel": "US Klaviyo"
+    "klaviyoAccountLabel": "US Klaviyo",
+    "klaviyoConversionMetricId": ""
   }
 ]
 ```
@@ -55,13 +59,14 @@ Optional Klaviyo variable:
 ## Shopify Production Checks
 
 - Create or confirm Shopify app access for each shop.
-- Grant only the scopes needed for reporting orders.
+- Grant only the scopes needed for reporting orders: `read_orders`, plus `read_all_orders` only if historical reporting beyond Shopify's default order window is required.
 - Store access tokens only in server-side environment variables.
 - Confirm API rate behavior on the largest region before enabling hourly sync.
 
 ## Klaviyo Production Checks
 
-- Create private keys with read-only reporting scopes.
+- Create private keys with read-only or custom reporting scopes.
+- Grant `campaigns:read` and `flows:read`; add `metrics:read` only if future metric aggregate reporting is implemented.
 - Confirm campaign and flow report endpoints return expected fields for each account.
 - Confirm the API revision is supported.
 - Store private keys only in server-side environment variables.

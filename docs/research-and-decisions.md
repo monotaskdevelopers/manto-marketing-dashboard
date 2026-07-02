@@ -16,12 +16,14 @@ Klaviyo:
 - Klaviyo Query Metric Aggregates endpoint: `https://developers.klaviyo.com/en/reference/query_metric_aggregates`
 - Klaviyo Get Campaigns endpoint: `https://developers.klaviyo.com/en/reference/get_campaigns`
 - Klaviyo Get Flows endpoint: `https://developers.klaviyo.com/en/reference/get_flows`
+- Klaviyo API authentication: `https://developers.klaviyo.com/en/docs/authenticate_`
 - Klaviyo API versioning policy: `https://developers.klaviyo.com/en/docs/api_versioning_and_deprecation_policy`
 
 Shopify:
 
 - Shopify Admin GraphQL `orders` query: `https://shopify.dev/docs/api/admin-graphql/latest/queries/orders`
 - Shopify API limits: `https://shopify.dev/docs/api/usage/limits`
+- Shopify API access scopes: `https://shopify.dev/docs/api/usage/access-scopes`
 - Shopify custom app/admin access token docs: `https://shopify.dev/docs/apps/build/authentication-authorization/access-tokens/generate-app-access-tokens-admin`
 
 Supabase:
@@ -44,6 +46,8 @@ Next.js and Vercel:
 - Klaviyo recommends Reporting API for campaign and flow performance that should match its UI.
 - Campaign and flow values endpoints are low-rate endpoints, so sync jobs must avoid repeated rapid calls.
 - Klaviyo metric aggregate queries can support broader event rollups, but the MVP should prefer campaign and flow reporting endpoints for campaign/flow tables.
+- Klaviyo private keys authenticate server-side `/api` requests and should not be exposed in client-side code.
+- The campaign report endpoint requires `campaigns:read`; the flow report endpoint requires `flows:read`.
 - New integrations should use the latest stable API revision and track deprecation timelines.
 
 Decision:
@@ -56,6 +60,8 @@ Decision:
 
 - Shopify Admin GraphQL `orders` can return order data with filtering, sorting, and pagination.
 - Shopify GraphQL API uses query-cost-based rate limiting.
+- Shopify custom app Admin API requests use an Admin API access token in the `X-Shopify-Access-Token` header.
+- Current order reporting needs `read_orders`; older historical order access may require `read_all_orders` with Shopify approval.
 - Apps should query only required fields, cache data, regulate request rate, and retry responsibly.
 - Existing admin-created custom apps still work, but new custom apps should be created through Shopify's Dev Dashboard or CLI.
 
