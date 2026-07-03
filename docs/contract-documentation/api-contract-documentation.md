@@ -15,8 +15,9 @@ Purpose:
 
 - Runs hourly sync for every active region with Shopify or Klaviyo credentials. Shopify rows and the current
   Klaviyo campaign slice are written server-side.
-- Klaviyo campaign performance dates that already exist in `klaviyo_campaign_reports` are skipped before
-  external report calls, except the current sync end date, which is always refreshed and upserted.
+- Klaviyo campaign metadata uses an `updated_at` cursor after initial storage, and campaign performance
+  reads `klaviyo_sync_date_coverage` before external report calls. Covered stable dates are skipped, while
+  the latest 3 report dates are refreshed for recent attribution changes.
 
 Authentication:
 
@@ -51,7 +52,8 @@ Purpose:
 
 - Allows an authenticated internal user to manually run the latest bounded Shopify and Klaviyo sync.
 - Keeps the requested historical window available while avoiding repeated Klaviyo report calls for
-  already-ingested campaign performance dates.
+  already-covered stable campaign performance dates. Manual sync refreshes the latest 7 report dates in
+  the requested window and can pick up targeted older campaign refreshes when Klaviyo metadata changed.
 
 Authentication:
 
@@ -172,9 +174,14 @@ Current behavior:
 
 - Manual and cron sync call campaign, campaign tag, campaign tag ID, beta campaign-audience, and campaign
   values report endpoints when a region has an encrypted Klaviyo private key.
+- Campaign collection calls use Klaviyo `updated_at` filters with a 24-hour safety lag after local campaign
+  metadata exists, so unchanged stored campaigns are not fetched on every hourly run.
 - Campaign values report requests persist Klaviyo native delivered counts, unique open/click/conversion
   recipient counts, and fractional rate fields so the Campaigns table does not recalculate campaign-list
   metrics from raw totals.
+- Campaign values report requests are planned from `klaviyo_sync_date_coverage`: missing dates and a small
+  recent mutable window use full-day requests, while older changed campaigns use a `campaign_id` report
+  filter instead of refetching a whole historical day.
 - Campaign tag and campaign-audience lookups are campaign-scoped optional details. Missing scopes,
   unsupported beta endpoints, 429 exhaustion after bounded retries, and transient detail failures are logged
   as sanitized warnings and do not fail the whole region.
@@ -188,3 +195,5 @@ Important safeguards:
   payloads, API keys, or auth headers.
 - Broader Klaviyo datasets should be added back as explicit product slices with their own rate-limit,
   retention, and privacy rules instead of being hidden inside the campaign sync.
+- Klaviyo campaign values reports do not expose a general changed-since cursor for statistics, so old metric
+  corrections that are not tied to campaign metadata updates require a deliberate backfill/operator job.

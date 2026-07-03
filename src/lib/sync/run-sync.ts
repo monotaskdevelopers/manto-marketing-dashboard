@@ -25,6 +25,22 @@ type RegionRecord = {
   slug: string;
 };
 
+type KlaviyoCampaignReportDatePlan = {
+  metricDate: string;
+  reason: "missing" | "mutable";
+};
+
+type KlaviyoCampaignMetadataState = {
+  campaignNamesById: Map<string, string>;
+  latestUpdatedAt: string | null;
+  updatedSince: string | null;
+  storedCampaignCount: number;
+};
+
+const klaviyoCampaignMetadataSafetyLagHours = 24;
+const klaviyoCronMutableReportWindowDays = 3;
+const klaviyoManualMutableReportWindowDays = 7;
+
 function toDateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
 }
@@ -39,6 +55,12 @@ function addDaysToDateString(dateString: string, days: number) {
   const date = new Date(`${dateString}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() + days);
   return toDateOnly(date);
+}
+
+function subtractHours(date: Date, hours: number) {
+  const copy = new Date(date);
+  copy.setUTCHours(copy.getUTCHours() - hours);
+  return copy;
 }
 
 function getSyncWindow(rangeDays = 30) {
@@ -62,6 +84,11 @@ function datesInRange(startDate: string, endDate: string) {
   }
 
   return dates;
+}
+
+function mutableReportWindowDaysForTrigger(triggeredBy: SyncTrigger) {
+  // Manual syncs are operator-initiated, so they refresh a wider recent window for late attribution changes.
+  return triggeredBy === "manual" ? klaviyoManualMutableReportWindowDays : klaviyoCronMutableReportWindowDays;
 }
 
 function sanitizeError(error: unknown) {
@@ -236,41 +263,51 @@ async function upsertRegions(configs: RegionIntegrationConfig[]) {
   return new Map((data as RegionRecord[]).map((region) => [region.slug, region.id]));
 }
 
-async function getKlaviyoCampaignReportDatesToFetch(params: {
+async function getKlaviyoCampaignMetadataState(params: {
   regionId: string;
   regionSlug: string;
   syncRunId: string;
-  startDate: string;
-  endDate: string;
-}) {
+}): Promise<KlaviyoCampaignMetadataState> {
   const admin = getSupabaseAdmin();
-  const requestedDates = datesInRange(params.startDate, params.endDate);
-  const existingDates = new Set<string>();
+  const campaignNamesById = new Map<string, string>();
   const pageSize = 1000;
   let rangeStart = 0;
+  let latestUpdatedAt: string | null = null;
+  let storedCampaignCount = 0;
 
-  // Supabase responses are paged. Read all matching report rows so large campaign libraries do not make the
-  // planner think an already-synced date is missing just because it was beyond the first response page.
+  // Read stored campaign names from our local database so report rows do not need a broad metadata crawl
+  // just to preserve names during an incremental campaign performance refresh.
   while (true) {
     const { data, error } = await admin
-      .from("klaviyo_campaign_reports")
-      .select("send_date")
+      .from("klaviyo_campaigns")
+      .select("campaign_id,name,klaviyo_updated_at")
       .eq("region_id", params.regionId)
-      .gte("send_date", params.startDate)
-      .lte("send_date", params.endDate)
-      .order("send_date", { ascending: true })
+      .order("campaign_id", { ascending: true })
       .range(rangeStart, rangeStart + pageSize - 1);
 
     if (error) {
       const summary = summarizeDatabaseError(error);
-      throw new Error(`Unable to inspect existing Klaviyo campaign report dates for region ${params.regionSlug}. ${summary}`);
+      throw new Error(`Unable to inspect existing Klaviyo campaign metadata for region ${params.regionSlug}. ${summary}`);
     }
 
-    ((data || []) as Array<{ send_date: string | null }>).forEach((row) => {
-      if (row.send_date) {
-        existingDates.add(row.send_date);
-      }
-    });
+    ((data || []) as Array<{ campaign_id: string | null; name: string | null; klaviyo_updated_at: string | null }>).forEach(
+      (row) => {
+        if (row.campaign_id && row.name) {
+          campaignNamesById.set(row.campaign_id, row.name);
+        }
+
+        if (row.klaviyo_updated_at) {
+          const rowTime = new Date(row.klaviyo_updated_at).getTime();
+          const latestTime = latestUpdatedAt ? new Date(latestUpdatedAt).getTime() : 0;
+
+          if (Number.isFinite(rowTime) && rowTime > latestTime) {
+            latestUpdatedAt = row.klaviyo_updated_at;
+          }
+        }
+      },
+    );
+
+    storedCampaignCount += data?.length || 0;
 
     if (!data || data.length < pageSize) {
       break;
@@ -279,20 +316,80 @@ async function getKlaviyoCampaignReportDatesToFetch(params: {
     rangeStart += pageSize;
   }
 
-  // Existing daily report rows prove that a historical date was already ingested. The current end date is
-  // always refreshed because same-day campaign numbers can still move before the day fully settles.
-  const datesToFetch = requestedDates.filter((date) => date === params.endDate || !existingDates.has(date));
-  const skippedDateCount = requestedDates.length - datesToFetch.length;
+  const latestUpdatedDate = latestUpdatedAt ? new Date(latestUpdatedAt) : null;
+  const updatedSince =
+    latestUpdatedDate && !Number.isNaN(latestUpdatedDate.getTime())
+      ? subtractHours(latestUpdatedDate, klaviyoCampaignMetadataSafetyLagHours).toISOString()
+      : null;
 
   console.info(
-    `[sync:klaviyo] Campaign performance date plan for region ${params.regionSlug} in run ${params.syncRunId}: requested=${requestedDates.length}, existing=${existingDates.size}, skipped=${skippedDateCount}, fetch=${datesToFetch.length}, forcedRefreshDate=${params.endDate}.`,
+    `[sync:klaviyo] Campaign metadata plan for region ${params.regionSlug} in run ${params.syncRunId}: storedCampaigns=${storedCampaignCount}, latestUpdatedAt=${latestUpdatedAt || "none"}, updatedSince=${updatedSince || "full"}.`,
   );
 
-  return datesToFetch;
+  return {
+    campaignNamesById,
+    latestUpdatedAt,
+    updatedSince,
+    storedCampaignCount,
+  };
+}
+
+async function getKlaviyoCampaignReportDatePlan(params: {
+  triggeredBy: SyncTrigger;
+  regionId: string;
+  regionSlug: string;
+  syncRunId: string;
+  startDate: string;
+  endDate: string;
+}): Promise<KlaviyoCampaignReportDatePlan[]> {
+  const admin = getSupabaseAdmin();
+  const requestedDates = datesInRange(params.startDate, params.endDate);
+  const mutableWindowDays = mutableReportWindowDaysForTrigger(params.triggeredBy);
+  const mutableDates = new Set(requestedDates.slice(-mutableWindowDays));
+  const coveredDates = new Set<string>();
+  const { data, error } = await admin
+    .from("klaviyo_sync_date_coverage")
+    .select("coverage_date")
+    .eq("region_id", params.regionId)
+    .eq("sync_area", "campaign-performance")
+    .eq("status", "success")
+    .gte("coverage_date", params.startDate)
+    .lte("coverage_date", params.endDate);
+
+  if (error) {
+    const summary = summarizeDatabaseError(error);
+    throw new Error(`Unable to inspect Klaviyo campaign performance coverage for region ${params.regionSlug}. ${summary}`);
+  }
+
+  ((data || []) as Array<{ coverage_date: string | null }>).forEach((row) => {
+    if (row.coverage_date) {
+      coveredDates.add(row.coverage_date);
+    }
+  });
+
+  const datePlan = requestedDates.flatMap((metricDate): KlaviyoCampaignReportDatePlan[] => {
+    if (mutableDates.has(metricDate)) {
+      return [{ metricDate, reason: "mutable" }];
+    }
+
+    if (!coveredDates.has(metricDate)) {
+      return [{ metricDate, reason: "missing" }];
+    }
+
+    return [];
+  });
+  const skippedDateCount = requestedDates.length - datePlan.length;
+
+  console.info(
+    `[sync:klaviyo] Campaign performance date plan for region ${params.regionSlug} in run ${params.syncRunId}: requested=${requestedDates.length}, covered=${coveredDates.size}, mutableWindowDays=${mutableWindowDays}, skipped=${skippedDateCount}, fetch=${datePlan.length}.`,
+  );
+
+  return datePlan;
 }
 
 async function syncRegion(params: {
   syncRunId: string;
+  triggeredBy: SyncTrigger;
   region: RegionIntegrationConfig;
   regionId: string;
   startDate: string;
@@ -334,7 +431,13 @@ async function syncRegion(params: {
 
   if (hasKlaviyoCredentials(params.region)) {
     try {
-      const campaignReportDates = await getKlaviyoCampaignReportDatesToFetch({
+      const campaignMetadataState = await getKlaviyoCampaignMetadataState({
+        regionId: params.regionId,
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      const campaignReportDatePlan = await getKlaviyoCampaignReportDatePlan({
+        triggeredBy: params.triggeredBy,
         regionId: params.regionId,
         regionSlug: params.region.slug,
         syncRunId: params.syncRunId,
@@ -347,7 +450,9 @@ async function syncRegion(params: {
         syncRunId: params.syncRunId,
         startDate: params.startDate,
         endDate: params.endDate,
-        campaignReportDates,
+        campaignReportDatePlan,
+        campaignMetadataUpdatedSince: campaignMetadataState.updatedSince,
+        existingCampaignNamesById: campaignMetadataState.campaignNamesById,
       });
 
       // Current Klaviyo scope is deliberately narrow: campaigns, campaign performance, campaign audiences,
@@ -378,6 +483,13 @@ async function syncRegion(params: {
         table: "klaviyo_campaign_reports",
         rows: klaviyoRows.campaignReportRows,
         conflictTarget: "region_id,campaign_id,send_date",
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+      });
+      await upsertSyncRows({
+        table: "klaviyo_sync_date_coverage",
+        rows: klaviyoRows.campaignReportCoverageRows,
+        conflictTarget: "region_id,sync_area,coverage_date",
         regionSlug: params.region.slug,
         syncRunId: params.syncRunId,
       });
@@ -481,6 +593,7 @@ export async function runSync(options: RunSyncOptions): Promise<SyncRunResult> {
       try {
         const regionResult = await syncRegion({
           syncRunId,
+          triggeredBy: options.triggeredBy,
           region,
           regionId,
           startDate,

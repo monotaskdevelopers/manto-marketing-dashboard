@@ -23,6 +23,8 @@ campaign/tag/audience resource rows needed by the Campaigns table.
 | `/supabase/migrations/S003-comprehensive-klaviyo-sync.sql` | Adds Klaviyo profile, audience, membership, metric, event, tag, campaign, and flow storage. |
 | `/supabase/migrations/S004-klaviyo-campaign-flow-detail-sync.sql` | Adds campaign messages, campaign audience relationships, flow actions, and flow messages for detailed Klaviyo reporting joins. |
 | `/supabase/migrations/S005-klaviyo-raw-resource-ingestion.sql` | Adds promoted campaign/flow fields for channels, tags, audiences, A/B tests, and raw included payloads; adds `klaviyo_raw_resources` for broad Klaviyo JSON:API snapshots. |
+| `/supabase/migrations/S006-klaviyo-campaign-report-native-rates.sql` | Adds Klaviyo native delivered, unique count, rate, and revenue-per-recipient fields to campaign report rows. |
+| `/supabase/migrations/S007-klaviyo-incremental-sync-state.sql` | Adds campaign performance date coverage tracking so sync can skip dates that were already successfully requested, including zero-row dates. |
 
 ## Tables
 
@@ -75,6 +77,21 @@ Important columns:
 - `message`: non-secret summary.
 - `error_details`: sanitized error details.
 
+### `klaviyo_sync_date_coverage`
+
+Stores one row per region, sync area, and report date that has been successfully requested from Klaviyo.
+This table is the skip signal for campaign performance ingestion, so the sync does not need to scan every
+campaign report row just to decide whether a date was already covered.
+
+Important columns:
+
+- `region_id`.
+- `sync_area`: currently `campaign-performance`.
+- `coverage_date`: daily Klaviyo report date that was requested.
+- `status`: `success` or `failed`; only successful rows are treated as covered by the planner.
+- `row_count`: number of grouped rows returned for the full-day request, including `0` for valid empty days.
+- `last_sync_run_id`, `last_synced_at`: operational audit fields.
+
 ### `shopify_daily_metrics`
 
 Stores one Shopify rollup row per region and date.
@@ -115,9 +132,10 @@ Important columns:
 Stores campaign-level daily reporting rows. The active Klaviyo sync writes this existing table from
 daily `campaign-values-reports` results collapsed to the unique `(region_id, campaign_id, send_date)` grain.
 For these synced performance rows, `send_date` is the metric date for that daily report row.
-The sync also uses existing `send_date` coverage as its no-extra-table skip signal: already-ingested
-historical dates are not requested from Klaviyo again, while the current sync end date is always refreshed
-and upserted.
+Existing `send_date` history is seeded into `klaviyo_sync_date_coverage`, then future syncs read the coverage table
+instead of scanning all report rows. Cron refreshes a small recent mutable window, manual sync refreshes a
+wider recent mutable window, and older covered dates are skipped unless a changed campaign metadata fetch
+requires a targeted campaign-ID report refresh.
 
 Important columns:
 

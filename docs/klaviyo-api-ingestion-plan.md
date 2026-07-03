@@ -45,21 +45,29 @@ Current synced data:
 
 | Klaviyo area | Current sync behavior | Database target |
 | --- | --- | --- |
-| Campaigns | Fetches email, SMS, and mobile push campaigns. Promotes name, status, channel list, archived flag, A/B test metadata, send dates, and raw campaign payload. | `klaviyo_campaigns`, `klaviyo_raw_resources` |
+| Campaigns | Initial sync fetches email, SMS, and mobile push campaigns. Later syncs filter campaign collection calls by `updated_at` with a 24-hour safety lag, then promote name, status, channel list, archived flag, A/B test metadata, send dates, and raw campaign payload only for changed campaigns. | `klaviyo_campaigns`, `klaviyo_raw_resources` |
 | Campaign status | Stored from each campaign's attributes and rendered by the Campaigns table filters/status pill. Archived campaigns are treated as archived in UI filtering. | `klaviyo_campaigns.status`, `klaviyo_campaigns.archived` |
 | Campaign tags | Uses `GET /campaigns?include=tags` as the primary source for campaign tag IDs/resources, then falls back to campaign-scoped tag/tag-ID endpoints only when a campaign payload lacks tag relationships. Per-campaign fallback endpoints do not send `page[size]` because Klaviyo rejects pagination on these relationship resources. | `klaviyo_tags`, `klaviyo_tag_relationships`, `klaviyo_raw_resources` |
 | Campaign audiences | Uses beta `GET /campaigns?include=campaign-audiences` with the `.pre` revision to build one campaign-to-audience relationship map instead of probing every campaign with audience endpoints. | `klaviyo_campaign_audiences`, `klaviyo_campaigns.audience_ids`, `klaviyo_raw_resources` |
-| Campaign performance | Before calling Klaviyo, inspects existing `klaviyo_campaign_reports.send_date` values for the requested window, skips already-ingested historical dates, and always refreshes the current window end date. Each fetched date still uses one paced `POST /campaign-values-reports` request with the configured or auto-detected conversion metric ID. Requests include `campaign_id`, `campaign_message_id`, and `send_channel` groupings, then collapse grouped results to campaign/day rows before upsert. | `klaviyo_campaign_reports` |
+| Campaign performance | Before calling Klaviyo, reads `klaviyo_sync_date_coverage` for the requested window, skips already-covered stable dates, refreshes a recent mutable window, and adds targeted old-date refreshes when Klaviyo returns changed campaign metadata. Each full-day date still uses one paced `POST /campaign-values-reports` request with the configured or auto-detected conversion metric ID. Targeted old-date refreshes add a `campaign_id` filter so they update changed campaigns without refetching the whole day. Requests include `campaign_id`, `campaign_message_id`, and `send_channel` groupings, then collapse grouped results to campaign/day rows before upsert. | `klaviyo_campaign_reports`, `klaviyo_sync_date_coverage` |
 
 ## Date-Scopable Reporting Rules
 
 - Campaign report rows use `klaviyo_campaign_reports.send_date` as the daily metric date for
   `campaign-values-reports` results. The column name is historical; daily performance ingestion should not
   rewrite report rows back to the campaign's send date.
-- Existing `send_date` coverage is also the skip signal for manual and cron campaign performance sync. If a
-  historical date in the requested window already has campaign report rows, the sync does not call Klaviyo
-  for that date again. The current window end date is always re-fetched and upserted because same-day
-  campaign performance can still change.
+- `klaviyo_sync_date_coverage` is the skip signal for manual and cron campaign performance sync. If a
+  stable historical date in the requested window has successful coverage, the sync does not call Klaviyo
+  for that full day again.
+- Cron sync refreshes the latest 3 report dates in the requested window because same-day and recent
+  attribution numbers can still move. Manual sync refreshes the latest 7 report dates because an operator
+  explicitly asked for fresher data.
+- Campaign metadata uses Klaviyo's `updated_at` filter after the first stored campaign set exists, with a
+  24-hour safety lag. If an older campaign appears in that incremental metadata result, the sync adds a
+  targeted campaign-performance request for that campaign's report date using a `campaign_id` report filter.
+- Klaviyo's campaign values report API does not provide a general "changed since" cursor for performance
+  statistics, so older metric corrections that do not also update campaign metadata are handled through the
+  mutable window or a future explicit backfill/operator job, not by broad hourly refetches.
 - Campaign report rows store Klaviyo native `open_rate`, `click_rate`, `conversion_rate`,
   `revenue_per_recipient`, `delivered`, `opens_unique`, `clicks_unique`, and `conversion_uniques` fields.
   Campaigns UI should display those exact rates/counts instead of recomputing from raw opens/clicks over
@@ -80,10 +88,10 @@ Current synced data:
 - Campaign performance lookup is optional. If Klaviyo rejects a daily Reporting API request or no conversion
   metric ID is configured/detectable, sync should log a sanitized warning and keep metadata rows.
 - Pace daily campaign performance requests because Klaviyo limits campaign values reports to a low steady
-  request rate. Do not fan these requests out concurrently, and do not call Klaviyo for already-ingested
-  historical dates.
-- Logs should include the campaign performance date plan: requested dates, existing dates, skipped dates,
-  dates that will be fetched, and the forced current refresh date.
+  request rate. Do not fan these requests out concurrently, and do not call Klaviyo for already-covered
+  stable historical dates.
+- Logs should include the campaign metadata cursor plan, campaign performance date coverage plan, skipped
+  dates, mutable-window size, changed-campaign plan count, and produced coverage rows.
 - Per-campaign requests should be avoided when collection includes can provide the relationship data.
 - Do not add `page[size]` to campaign-scoped tag relationship fallback endpoints.
 
