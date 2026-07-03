@@ -27,6 +27,10 @@ revenue, and revenue per recipient.
 - Metric period display based on the shared dashboard date filters, defaulting to the last 7 days for this page.
 - Placed Order metric selector.
 - Table columns for Flow Name, Type, Status, Last Updated, Revenue, and Revenue per recipient.
+- URL-backed pagination runs after the current flow search/filter/sort state, so page links and result counts
+  reflect the filtered row set.
+- The Flow table does not create its own horizontal scroll container; the page/card widens for the full table
+  and the browser page handles any horizontal overflow.
 - `/klaviyo/flows` reuses this page so the nested sidebar route and top-level `/flows` route stay aligned.
 
 ## Security Concerns

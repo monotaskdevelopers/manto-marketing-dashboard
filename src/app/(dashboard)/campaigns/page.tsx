@@ -28,6 +28,24 @@ function getSearchParamValue(searchParams: RawSearchParams, name: string) {
   return Array.isArray(value) ? value[0] || "" : value || "";
 }
 
+function getSearchParamValues(searchParams: RawSearchParams, name: string) {
+  const value = searchParams[name];
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+
+  return Array.from(new Set(values.map((item) => item.trim()).filter(Boolean)));
+}
+
+function normalizeFilterParamValue(value: string) {
+  return value.toLowerCase().replace(/\s+/g, "_").slice(0, 120);
+}
+
+function getSelectedFilterValues(searchParams: RawSearchParams, name: string) {
+  const values = getSearchParamValues(searchParams, name);
+
+  // The client dropdowns use "all" as the explicit empty state so filtering never depends on an empty array.
+  return values.length ? values.map(normalizeFilterParamValue) : ["all"];
+}
+
 function getDateRangeLabel(filters: DashboardFilters) {
   if (filters.preset === "custom") {
     return `${formatDateOnlyLabel(filters.startDate)} - ${formatDateOnlyLabel(filters.endDate)}`;
@@ -40,10 +58,10 @@ function getDateRangeLabel(filters: DashboardFilters) {
 
 function parseCampaignAdvancedFilters(searchParams: RawSearchParams) {
   return {
-    status: getSearchParamValue(searchParams, "campaignStatus") || "all",
-    channel: getSearchParamValue(searchParams, "campaignChannel") || "all",
-    audience: getSearchParamValue(searchParams, "campaignAudience") || "all",
-    tag: getSearchParamValue(searchParams, "campaignTag") || "all",
+    status: getSelectedFilterValues(searchParams, "campaignStatus"),
+    channel: getSelectedFilterValues(searchParams, "campaignChannel"),
+    audience: getSelectedFilterValues(searchParams, "campaignAudience"),
+    tag: getSelectedFilterValues(searchParams, "campaignTag"),
   };
 }
 
@@ -65,13 +83,13 @@ export default async function CampaignsPage({ searchParams }: CampaignPageProps)
   const dateRangeLabel = getDateRangeLabel(filters);
   const initialCampaignTableFilters = {
     query: getSearchParamValue(rawSearchParams, "campaignQ").trim().slice(0, 80),
-    region: filters.regionSlug,
+    region: filters.regionSlug === "all" ? ["all"] : [filters.regionSlug],
     ...campaignAdvancedFilters,
   };
 
   return (
     <div className="min-h-screen bg-[#f5f6f8] p-3 text-[#26292f] sm:p-5">
-      <section className="min-h-[calc(100vh-40px)] overflow-hidden rounded-[14px] border border-[#e2e5e9] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <section className="min-h-[calc(100vh-40px)] min-w-[1240px] rounded-[14px] border border-[#e2e5e9] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <header className="flex min-h-14 items-center border-b border-[#eceff3] px-5 py-3">
           <h1 className="text-lg font-semibold tracking-normal text-[#24272c]">Campaigns</h1>
         </header>

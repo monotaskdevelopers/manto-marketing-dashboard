@@ -31,8 +31,9 @@ engagement quality, and placed-order revenue.
   and without making another database-backed request.
 - Compact modular date range picker wired to the shared `preset`, `start`, and `end` dashboard filters because date
   changes define the reporting dataset.
-- Region, Audience, Channels, Status, and Tags filters run client-side against the already-loaded campaign
-  rows and synced metadata from `klaviyo_campaign_audiences`, `klaviyo_tag_relationships`, and `klaviyo_tags`.
+- Region, Audience, Channels, Status, and Tags filters use custom checkbox dropdowns with active chips and
+  run client-side against the already-loaded campaign rows and synced metadata from
+  `klaviyo_campaign_audiences`, `klaviyo_tag_relationships`, and `klaviyo_tags`.
 - Email performance summary cards include overall generated revenue and recalculate from the same client-filtered
   rows as the table so search and filter changes keep the top metrics aligned with visible results.
 - Overall Revenue Generated and Revenue per recipient group values by `currency_code` when filtered campaign rows
@@ -42,6 +43,10 @@ engagement quality, and placed-order revenue.
   send recipients or raw event totals.
 - Sortable table columns for Campaign, Region, Message Type, Status, Send Date, Open Rate, Click Rate, and
   Placed Order Rev, without row-selection checkboxes.
+- Client-side pagination runs after search, filters, and sorting, so the visible page and result count always
+  reflect the currently filtered campaign set.
+- The Campaigns table does not create its own horizontal scroll container; the page/card widens for the full
+  table and the browser page handles any horizontal overflow.
 - Message Type icons expose hover/focus tooltips so users can distinguish email, SMS/text, and A/B test rows.
 - `/klaviyo/campaigns` reuses this page so the nested sidebar route and top-level `/campaigns` route stay aligned.
 
@@ -55,4 +60,4 @@ engagement quality, and placed-order revenue.
 
 - Campaign message type falls back to safe name/channel inference because the active Klaviyo sync does not
   fetch campaign message rows.
-- View benchmarks and row action controls are visual placeholders.
+- Row action controls are visual placeholders.

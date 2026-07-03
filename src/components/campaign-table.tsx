@@ -1,9 +1,10 @@
 /*
 File description:
 This client component owns the Campaigns table controls and rows. It receives the campaigns, regions, and
-Klaviyo metadata already loaded by the server, then performs search and campaign filters in memory so
-typing in the search box or changing filters does not trigger another database-backed page request. It also
-recalculates the top campaign metrics from the filtered rows so summary cards match the table results.
+Klaviyo metadata already loaded by the server, then performs search, campaign filters, sorting, and
+pagination in memory so typing in the search box or changing filters does not trigger another database-backed
+page request. It also recalculates the top campaign metrics from the filtered rows so summary cards match
+the table results.
 */
 
 "use client";
@@ -11,7 +12,11 @@ recalculates the top campaign metrics from the filtered rows so summary cards ma
 import {
   ArrowDown,
   ArrowUp,
+  ChevronLeft,
+  ChevronRight,
   ChevronsUpDown,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   ChevronUp,
   Mail,
@@ -21,10 +26,11 @@ import {
   TrendingDown,
   TrendingUp,
 } from "lucide-react";
-import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import { clsx } from "clsx";
 
 import { DateRangePicker, type DateRangeSelection } from "@/components/date-range-picker";
+import { MultiSelectDropdown, type MultiSelectDropdownOption } from "@/components/multi-select-dropdown";
 import {
   buildTrendLabel,
   compareKlaviyoPerformanceByDate,
@@ -82,11 +88,11 @@ type CampaignMetricCard = {
 
 export type CampaignTableFilters = {
   query: string;
-  region: string;
-  status: string;
-  channel: string;
-  audience: string;
-  tag: string;
+  region: string[];
+  status: string[];
+  channel: string[];
+  audience: string[];
+  tag: string[];
 };
 
 type EnrichedCampaignRow = {
@@ -109,6 +115,8 @@ const defaultSortState: CampaignSortState = {
   key: "sendDate",
   direction: "desc",
 };
+const campaignPageSizeOptions = [10, 25, 50, 100];
+const defaultCampaignPageSize = 25;
 
 function buildKlaviyoMetadataKey(regionId: string, campaignId: string) {
   return `${regionId}:${campaignId}`;
@@ -133,8 +141,8 @@ function normalizeDynamicOptionInput(option: DynamicOptionInput) {
   return option;
 }
 
-function buildDynamicOptions(values: DynamicOptionInput[], allLabel: string) {
-  const optionsByValue = new Map<string, { value: string; label: string }>();
+function buildDynamicOptions(values: DynamicOptionInput[]) {
+  const optionsByValue = new Map<string, MultiSelectDropdownOption>();
 
   values.forEach((option) => {
     const normalizedOption = normalizeDynamicOptionInput(option);
@@ -146,16 +154,21 @@ function buildDynamicOptions(values: DynamicOptionInput[], allLabel: string) {
     }
   });
 
-  return [
-    { value: "all", label: allLabel },
-    ...Array.from(optionsByValue.values()).sort((left, right) =>
-      left.label.localeCompare(right.label, "en", { sensitivity: "base" }),
-    ),
-  ];
+  return Array.from(optionsByValue.values()).sort((left, right) =>
+    left.label.localeCompare(right.label, "en", { sensitivity: "base" }),
+  );
 }
 
-function optionMatches(selectedValue: string, values: string[]) {
-  return selectedValue === "all" || values.some((value) => normalizeOptionValue(value) === selectedValue);
+function selectedValuesMatchAny(selectedValues: string[], values: string[]) {
+  const activeValues = selectedValues
+    .filter((value) => value !== "all")
+    .map((value) => normalizeOptionValue(value));
+
+  if (!activeValues.length) {
+    return true;
+  }
+
+  return values.some((value) => activeValues.includes(normalizeOptionValue(value)));
 }
 
 function formatStatusLabel(value: string | null | undefined, fallback: string) {
@@ -559,14 +572,11 @@ function buildFilterOptions(enrichedRows: EnrichedCampaignRow[], regions: Region
   });
 
   return {
-    regionOptions: [
-      { value: "all", label: "Region: All" },
-      ...regions.map((region) => ({ value: region.slug, label: `Region: ${region.name}` })),
-    ],
-    statusOptions: buildDynamicOptions(statuses, "Status: All"),
-    channelOptions: buildDynamicOptions(channels, "Channels: All"),
-    audienceOptions: buildDynamicOptions(audiences, "Audience: All"),
-    tagOptions: buildDynamicOptions(tags, "Tags: All"),
+    regionOptions: regions.map((region) => ({ value: region.slug, label: region.name })),
+    statusOptions: buildDynamicOptions(statuses),
+    channelOptions: buildDynamicOptions(channels),
+    audienceOptions: buildDynamicOptions(audiences),
+    tagOptions: buildDynamicOptions(tags),
   };
 }
 
@@ -578,23 +588,23 @@ function filterCampaignRows(rows: EnrichedCampaignRow[], filters: CampaignTableF
       return false;
     }
 
-    if (filters.region !== "all" && row.regionSlug !== filters.region) {
+    if (!selectedValuesMatchAny(filters.region, [row.regionSlug])) {
       return false;
     }
 
-    if (!optionMatches(filters.status, [row.status])) {
+    if (!selectedValuesMatchAny(filters.status, [row.status])) {
       return false;
     }
 
-    if (!optionMatches(filters.channel, row.channels)) {
+    if (!selectedValuesMatchAny(filters.channel, row.channels)) {
       return false;
     }
 
-    if (!optionMatches(filters.audience, row.audienceIds)) {
+    if (!selectedValuesMatchAny(filters.audience, row.audienceIds)) {
       return false;
     }
 
-    if (!optionMatches(filters.tag, row.tagIds)) {
+    if (!selectedValuesMatchAny(filters.tag, row.tagIds)) {
       return false;
     }
 
@@ -655,46 +665,6 @@ function sortCampaignRows(rows: EnrichedCampaignRow[], sortState: CampaignSortSt
 
 function getInitialSortDirection(sortKey: CampaignSortKey): SortDirection {
   return ["sendDate", "openRate", "clickRate", "revenue"].includes(sortKey) ? "desc" : "asc";
-}
-
-function FilterSelect({
-  value,
-  options,
-  ariaLabel,
-  wide = false,
-  dotted = false,
-  onChange,
-}: {
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  ariaLabel: string;
-  wide?: boolean;
-  dotted?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <span className={clsx("relative inline-flex", wide ? "min-w-[170px]" : "min-w-fit")}>
-      <select
-        aria-label={ariaLabel}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className={clsx(
-          "h-9 w-full appearance-none rounded-[7px] border bg-white pl-3 pr-9 text-sm font-medium text-[#62666d] transition hover:bg-[#fafafa] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f5bd8]",
-          dotted ? "border-dashed border-[#d5d9df]" : "border-[#d8dde3]",
-        )}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown
-        aria-hidden="true"
-        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
-      />
-    </span>
-  );
 }
 
 function getMessageTypeTooltip(type: CampaignMessageType) {
@@ -794,6 +764,31 @@ function SortableHeader({
         <SortIcon aria-hidden="true" className={clsx("h-3.5 w-3.5", isActive ? "text-[#1f5bd8]" : "text-[#9aa0a8]")} />
       </button>
     </th>
+  );
+}
+
+function PaginationIconButton({
+  label,
+  disabled,
+  onClick,
+  children,
+}: {
+  label: string;
+  disabled: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-[7px] border border-[#d8dde3] bg-white text-[#34383e] transition hover:bg-[#f8f9fb] disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      {children}
+    </button>
   );
 }
 
@@ -916,6 +911,8 @@ export function CampaignTable({
 }) {
   const [filters, setFilters] = useState<CampaignTableFilters>(initialFilters);
   const [sortState, setSortState] = useState<CampaignSortState>(defaultSortState);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(defaultCampaignPageSize);
   const deferredQuery = useDeferredValue(filters.query);
   const effectiveFilters = useMemo(
     () => ({ ...filters, query: deferredQuery }),
@@ -935,8 +932,25 @@ export function CampaignTable({
     () => buildCampaignMetrics({ rows: filteredMetricRows, dateSelection }),
     [dateSelection, filteredMetricRows],
   );
-  const visibleRows = useMemo(() => sortCampaignRows(filteredRows, sortState), [filteredRows, sortState]);
+  const sortedRows = useMemo(() => sortCampaignRows(filteredRows, sortState), [filteredRows, sortState]);
+  const totalPages = Math.max(1, Math.ceil(sortedRows.length / pageSize));
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const pageStartIndex = sortedRows.length ? (safeCurrentPage - 1) * pageSize : 0;
+  const pageEndIndex = Math.min(pageStartIndex + pageSize, sortedRows.length);
+  const visibleRows = useMemo(
+    () => sortedRows.slice(pageStartIndex, pageEndIndex),
+    [pageEndIndex, pageStartIndex, sortedRows],
+  );
   const normalizedDateRangeLabel = dateRangeLabel || "Selected period";
+  const resultNoun = sortedRows.length === 1 ? "result" : "results";
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [effectiveFilters, pageSize, sortState]);
+
+  useEffect(() => {
+    setCurrentPage((page) => Math.min(Math.max(page, 1), totalPages));
+  }, [totalPages]);
 
   function updateFilter<Key extends keyof CampaignTableFilters>(key: Key, value: CampaignTableFilters[Key]) {
     setFilters((currentFilters) => ({
@@ -957,6 +971,14 @@ export function CampaignTable({
     }));
   }
 
+  function updatePageSize(value: string) {
+    const nextPageSize = Number(value);
+
+    if (campaignPageSizeOptions.includes(nextPageSize)) {
+      setPageSize(nextPageSize);
+    }
+  }
+
   return (
     <>
       <section className="px-5 py-6">
@@ -967,12 +989,6 @@ export function CampaignTable({
               Email performance {normalizedDateRangeLabel.toLowerCase()}
             </h2>
           </div>
-          <button
-            type="button"
-            className="inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-[8px] border border-[#d7dbe0] bg-white px-4 text-sm font-semibold text-[#24272c] shadow-[0_1px_1px_rgba(16,24,40,0.04)] transition hover:bg-[#f8f9fb]"
-          >
-            View benchmarks
-          </button>
         </div>
 
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-5">
@@ -1021,41 +1037,51 @@ export function CampaignTable({
               <DateRangePicker value={dateSelection} currentDate={currentDate} />
             </div>
 
-            <FilterSelect
+            <MultiSelectDropdown
+              label="Region"
               ariaLabel="Filter by region"
-              value={filters.region}
+              selectedValues={filters.region}
               options={filterOptions.regionOptions}
-              onChange={(value) => updateFilter("region", value)}
+              allLabel="All regions"
+              onChange={(values) => updateFilter("region", values)}
               dotted
               wide
             />
-            <FilterSelect
+            <MultiSelectDropdown
+              label="Audience"
               ariaLabel="Filter by audience"
-              value={filters.audience}
+              selectedValues={filters.audience}
               options={filterOptions.audienceOptions}
-              onChange={(value) => updateFilter("audience", value)}
+              allLabel="All audiences"
+              onChange={(values) => updateFilter("audience", values)}
               dotted
               wide
             />
-            <FilterSelect
+            <MultiSelectDropdown
+              label="Channel"
               ariaLabel="Filter by channel"
-              value={filters.channel}
+              selectedValues={filters.channel}
               options={filterOptions.channelOptions}
-              onChange={(value) => updateFilter("channel", value)}
+              allLabel="All channels"
+              onChange={(values) => updateFilter("channel", values)}
               dotted
             />
-            <FilterSelect
+            <MultiSelectDropdown
+              label="Status"
               ariaLabel="Filter by status"
-              value={filters.status}
+              selectedValues={filters.status}
               options={filterOptions.statusOptions}
-              onChange={(value) => updateFilter("status", value)}
+              allLabel="All statuses"
+              onChange={(values) => updateFilter("status", values)}
               dotted
             />
-            <FilterSelect
+            <MultiSelectDropdown
+              label="Tags"
               ariaLabel="Filter by tags"
-              value={filters.tag}
+              selectedValues={filters.tag}
               options={filterOptions.tagOptions}
-              onChange={(value) => updateFilter("tag", value)}
+              allLabel="All tags"
+              onChange={(values) => updateFilter("tag", values)}
               dotted
               wide
             />
@@ -1063,12 +1089,12 @@ export function CampaignTable({
 
           <div className="flex items-center gap-2 self-start xl:self-end">
             <p className="whitespace-nowrap text-sm font-medium text-[#666b72]" aria-live="polite">
-              {visibleRows.length} of {rows.length}
+              {sortedRows.length} of {rows.length}
             </p>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <div className="overflow-visible">
           <table className="min-w-[1180px] w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-[#ebedf0] text-sm font-medium text-[#62666d]">
@@ -1201,7 +1227,7 @@ export function CampaignTable({
                 </tr>
               );
             })}
-            {!visibleRows.length ? (
+            {!sortedRows.length ? (
               <tr>
                 <td colSpan={9} className="px-2 py-16 text-center text-sm font-medium text-[#666b72]">
                   No campaign data is available for the selected filters.
@@ -1211,6 +1237,69 @@ export function CampaignTable({
           </tbody>
         </table>
       </div>
+        <div className="mt-4 flex flex-col gap-3 border-t border-[#ebedf0] pt-4 md:flex-row md:items-center md:justify-between">
+          <p className="text-sm font-medium text-[#666b72]" aria-live="polite">
+            Showing {sortedRows.length ? pageStartIndex + 1 : 0}-{pageEndIndex} of {sortedRows.length} filtered{" "}
+            {resultNoun}
+            {sortedRows.length !== rows.length ? ` (${rows.length} total loaded)` : ""}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-[#62666d]">
+              Rows per page
+              <span className="relative inline-flex">
+                <select
+                  aria-label="Campaign rows per page"
+                  value={pageSize}
+                  onChange={(event) => updatePageSize(event.target.value)}
+                  className="h-9 appearance-none rounded-[7px] border border-[#d8dde3] bg-white pl-3 pr-9 text-sm font-medium text-[#34383e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f5bd8]"
+                >
+                  {campaignPageSizeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden="true"
+                  className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                />
+              </span>
+            </label>
+            <span className="min-w-[92px] text-center text-sm font-medium text-[#62666d]">
+              Page {safeCurrentPage} of {totalPages}
+            </span>
+            <div className="flex items-center gap-1">
+              <PaginationIconButton
+                label="First page"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage(1)}
+              >
+                <ChevronsLeft aria-hidden="true" className="h-4 w-4" />
+              </PaginationIconButton>
+              <PaginationIconButton
+                label="Previous page"
+                disabled={safeCurrentPage <= 1}
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              >
+                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+              </PaginationIconButton>
+              <PaginationIconButton
+                label="Next page"
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+              >
+                <ChevronRight aria-hidden="true" className="h-4 w-4" />
+              </PaginationIconButton>
+              <PaginationIconButton
+                label="Last page"
+                disabled={safeCurrentPage >= totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+              >
+                <ChevronsRight aria-hidden="true" className="h-4 w-4" />
+              </PaginationIconButton>
+            </div>
+          </div>
+        </div>
       </section>
     </>
   );

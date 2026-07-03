@@ -21,8 +21,9 @@ hierarchy.
 
 - Reuses the top-level `/flows` page implementation.
 - Preserves the existing nested sidebar destination.
-- Uses the same server-side search, metric period filters, flow/message metadata enrichment, and empty states as `/flows`.
+- Uses the same server-side search, metric period filters, URL-backed pagination, flow/message metadata enrichment, and empty states as `/flows`.
 - Shows Flow Name, Type, Status, Last Updated, Revenue, and Revenue per recipient columns.
+- Keeps table overflow at the page level instead of adding an internal horizontal table scrollbar.
 
 ## Security Concerns
 

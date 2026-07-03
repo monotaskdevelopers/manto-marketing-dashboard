@@ -2,7 +2,8 @@
 File description:
 This Flows page renders the rebuilt Klaviyo-style automation workspace with real synced flow report data.
 It keeps the compact Klaviyo-inspired controls and table composition while loading rows through the
-server-side dashboard data pipeline.
+server-side dashboard data pipeline. It paginates the filtered flow rows and lets wide tables expand the
+page instead of creating an internal table scroll area.
 */
 
 import { clsx } from "clsx";
@@ -10,6 +11,10 @@ import {
   AlertTriangle,
   CalendarDays,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   LineChart,
   List,
   Mail,
@@ -48,6 +53,94 @@ type FlowsPageProps = {
 };
 
 type FlowMessageType = "email" | "message" | "multi" | "none";
+type PreservedField = {
+  name: string;
+  value: string;
+};
+
+const flowPageFieldName = "flowPage";
+const flowPageSizeFieldName = "flowPageSize";
+const flowPageSizeOptions = [10, 25, 50, 100];
+const defaultFlowPageSize = 25;
+
+function getSearchParamValue(searchParams: RawSearchParams, name: string) {
+  const value = searchParams[name];
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function parsePositiveInteger(value: string, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : fallback;
+}
+
+function getFlowPageSize(searchParams: RawSearchParams) {
+  const requestedSize = parsePositiveInteger(getSearchParamValue(searchParams, flowPageSizeFieldName), defaultFlowPageSize);
+  return flowPageSizeOptions.includes(requestedSize) ? requestedSize : defaultFlowPageSize;
+}
+
+function getFlowPage(searchParams: RawSearchParams) {
+  return parsePositiveInteger(getSearchParamValue(searchParams, flowPageFieldName), 1);
+}
+
+function buildPreservedFields(searchParams: RawSearchParams, excludedFields: Set<string>) {
+  const fields: PreservedField[] = [];
+
+  Object.entries(searchParams).forEach(([name, value]) => {
+    if (excludedFields.has(name)) {
+      return;
+    }
+
+    if (Array.isArray(value)) {
+      value.forEach((item) => {
+        if (item) {
+          fields.push({ name, value: item });
+        }
+      });
+      return;
+    }
+
+    if (value) {
+      fields.push({ name, value });
+    }
+  });
+
+  return fields;
+}
+
+function buildPaginationHref(searchParams: RawSearchParams, page: number, pageSize: number) {
+  const preservedFields = buildPreservedFields(searchParams, new Set([flowPageFieldName, flowPageSizeFieldName]));
+  const params = new URLSearchParams();
+
+  preservedFields.forEach((field) => {
+    params.append(field.name, field.value);
+  });
+
+  if (page > 1) {
+    params.set(flowPageFieldName, String(page));
+  }
+
+  if (pageSize !== defaultFlowPageSize) {
+    params.set(flowPageSizeFieldName, String(pageSize));
+  }
+
+  const query = params.toString();
+  return query ? `?${query}` : "?";
+}
+
+function paginateRows<T>(rows: T[], requestedPage: number, pageSize: number) {
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const currentPage = Math.min(Math.max(requestedPage, 1), totalPages);
+  const startIndex = rows.length ? (currentPage - 1) * pageSize : 0;
+  const endIndex = Math.min(startIndex + pageSize, rows.length);
+
+  return {
+    rows: rows.slice(startIndex, endIndex),
+    currentPage,
+    totalPages,
+    startIndex,
+    endIndex,
+  };
+}
 
 function getFlowDashboardFilters(searchParams: RawSearchParams) {
   if (searchParams.preset) {
@@ -214,6 +307,33 @@ function FilterButton({
   );
 }
 
+function PaginationLink({
+  href,
+  label,
+  disabled,
+  children,
+}: {
+  href: string;
+  label: string;
+  disabled: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <a
+      aria-label={label}
+      aria-disabled={disabled}
+      title={label}
+      href={disabled ? undefined : href}
+      className={clsx(
+        "inline-flex h-9 w-9 items-center justify-center rounded-[7px] border border-[#d8dde3] bg-white text-[#34383e] transition hover:bg-[#f8f9fb]",
+        disabled && "pointer-events-none opacity-40",
+      )}
+    >
+      {children}
+    </a>
+  );
+}
+
 function TypeIcon({
   type,
 }: {
@@ -287,6 +407,9 @@ export default async function FlowsPage({ searchParams }: FlowsPageProps) {
     defaultFilter: "all",
   });
   const flowRows = filterAndSortKlaviyoSimpleRows(data.flowRows, flowTableState);
+  const flowPageSize = getFlowPageSize(rawSearchParams);
+  const flowPagination = paginateRows(flowRows, getFlowPage(rawSearchParams), flowPageSize);
+  const flowPageSizeFields = buildPreservedFields(rawSearchParams, new Set([flowPageFieldName, flowPageSizeFieldName]));
   const [flowMetadataByKey, flowMessagesByKey] = await Promise.all([
     getFlowMetadataByReportRows(data.flowRows),
     getFlowMessagesByReportRows(data.flowRows),
@@ -296,7 +419,7 @@ export default async function FlowsPage({ searchParams }: FlowsPageProps) {
 
   return (
     <div className="min-h-screen bg-[#f5f6f8] p-3 text-[#26292f] sm:p-5">
-      <section className="min-h-[calc(100vh-40px)] overflow-hidden rounded-[14px] border border-[#e2e5e9] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <section className="min-h-[calc(100vh-40px)] min-w-[1200px] rounded-[14px] border border-[#e2e5e9] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
         <header className="flex min-h-14 flex-col gap-3 border-b border-[#eceff3] px-5 py-3 lg:flex-row lg:items-center lg:justify-between">
           <h1 className="text-lg font-semibold tracking-normal text-[#24272c]">Flows</h1>
           <div className="flex flex-wrap items-center gap-2">
@@ -329,6 +452,15 @@ export default async function FlowsPage({ searchParams }: FlowsPageProps) {
             {hiddenDashboardFields.map((field) => (
               <input key={field.name} type="hidden" name={field.name} value={field.value} />
             ))}
+            {flowTableState.filter !== "all" ? (
+              <input type="hidden" name={flowFieldNames.filter} value={flowTableState.filter} />
+            ) : null}
+            {flowTableState.sort !== "date_desc" ? (
+              <input type="hidden" name={flowFieldNames.sort} value={flowTableState.sort} />
+            ) : null}
+            {flowPageSize !== defaultFlowPageSize ? (
+              <input type="hidden" name={flowPageSizeFieldName} value={flowPageSize} />
+            ) : null}
             <div className="flex min-w-0 flex-wrap items-end gap-2">
               <label className="relative block h-9 w-full max-w-[250px] sm:w-[250px]">
                 <span className="sr-only">Search flows</span>
@@ -386,7 +518,7 @@ export default async function FlowsPage({ searchParams }: FlowsPageProps) {
             </div>
           </form>
 
-          <div className="overflow-x-auto">
+          <div className="overflow-visible">
             <table className="min-w-[1120px] w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-[#ebedf0] text-sm font-medium text-[#62666d]">
@@ -407,7 +539,7 @@ export default async function FlowsPage({ searchParams }: FlowsPageProps) {
                 </tr>
               </thead>
               <tbody>
-                {flowRows.map((row) => {
+                {flowPagination.rows.map((row) => {
                   const metadata = flowMetadataByKey.get(buildKlaviyoMetadataKey(row.region_id, row.flow_id));
                   const messages = flowMessagesByKey.get(buildKlaviyoMetadataKey(row.region_id, row.flow_id)) || [];
                   const displayName = metadata?.name || row.flow_name;
@@ -475,6 +607,80 @@ export default async function FlowsPage({ searchParams }: FlowsPageProps) {
                 ) : null}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 border-t border-[#ebedf0] pt-4 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm font-medium text-[#666b72]">
+              Showing {flowRows.length ? flowPagination.startIndex + 1 : 0}-{flowPagination.endIndex} of{" "}
+              {flowRows.length} filtered {flowRows.length === 1 ? "result" : "results"}
+              {flowRows.length !== data.flowRows.length ? ` (${data.flowRows.length} total loaded)` : ""}
+            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <form method="get" className="flex items-center gap-2">
+                {flowPageSizeFields.map((field, index) => (
+                  <input key={`${field.name}-${index}`} type="hidden" name={field.name} value={field.value} />
+                ))}
+                <label className="flex items-center gap-2 text-sm font-medium text-[#62666d]">
+                  Rows per page
+                  <span className="relative inline-flex">
+                    <select
+                      name={flowPageSizeFieldName}
+                      aria-label="Flow rows per page"
+                      defaultValue={flowPageSize}
+                      className="h-9 appearance-none rounded-[7px] border border-[#d8dde3] bg-white pl-3 pr-9 text-sm font-medium text-[#34383e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1f5bd8]"
+                    >
+                      {flowPageSizeOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown
+                      aria-hidden="true"
+                      className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#62666d]"
+                    />
+                  </span>
+                </label>
+                <button
+                  type="submit"
+                  className="inline-flex h-9 items-center justify-center rounded-[7px] border border-[#d8dde3] bg-white px-3 text-sm font-semibold text-[#34383e] transition hover:bg-[#f8f9fb]"
+                >
+                  Apply
+                </button>
+              </form>
+              <span className="min-w-[92px] text-center text-sm font-medium text-[#62666d]">
+                Page {flowPagination.currentPage} of {flowPagination.totalPages}
+              </span>
+              <div className="flex items-center gap-1">
+                <PaginationLink
+                  label="First page"
+                  disabled={flowPagination.currentPage <= 1}
+                  href={buildPaginationHref(rawSearchParams, 1, flowPageSize)}
+                >
+                  <ChevronsLeft aria-hidden="true" className="h-4 w-4" />
+                </PaginationLink>
+                <PaginationLink
+                  label="Previous page"
+                  disabled={flowPagination.currentPage <= 1}
+                  href={buildPaginationHref(rawSearchParams, flowPagination.currentPage - 1, flowPageSize)}
+                >
+                  <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+                </PaginationLink>
+                <PaginationLink
+                  label="Next page"
+                  disabled={flowPagination.currentPage >= flowPagination.totalPages}
+                  href={buildPaginationHref(rawSearchParams, flowPagination.currentPage + 1, flowPageSize)}
+                >
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                </PaginationLink>
+                <PaginationLink
+                  label="Last page"
+                  disabled={flowPagination.currentPage >= flowPagination.totalPages}
+                  href={buildPaginationHref(rawSearchParams, flowPagination.totalPages, flowPageSize)}
+                >
+                  <ChevronsRight aria-hidden="true" className="h-4 w-4" />
+                </PaginationLink>
+              </div>
+            </div>
           </div>
         </section>
       </section>
