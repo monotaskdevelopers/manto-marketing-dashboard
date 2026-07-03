@@ -35,6 +35,12 @@ function addDays(date: Date, days: number) {
   return copy;
 }
 
+function addDaysToDateString(dateString: string, days: number) {
+  const date = new Date(`${dateString}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return toDateOnly(date);
+}
+
 function getSyncWindow(rangeDays = 30) {
   const safeRangeDays = Math.min(Math.max(rangeDays, 1), 90);
   const now = new Date();
@@ -44,6 +50,18 @@ function getSyncWindow(rangeDays = 30) {
     startDate: toDateOnly(addDays(end, -(safeRangeDays - 1))),
     endDate: toDateOnly(end),
   };
+}
+
+function datesInRange(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  let currentDate = startDate;
+
+  while (currentDate <= endDate) {
+    dates.push(currentDate);
+    currentDate = addDaysToDateString(currentDate, 1);
+  }
+
+  return dates;
 }
 
 function sanitizeError(error: unknown) {
@@ -218,6 +236,61 @@ async function upsertRegions(configs: RegionIntegrationConfig[]) {
   return new Map((data as RegionRecord[]).map((region) => [region.slug, region.id]));
 }
 
+async function getKlaviyoCampaignReportDatesToFetch(params: {
+  regionId: string;
+  regionSlug: string;
+  syncRunId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const admin = getSupabaseAdmin();
+  const requestedDates = datesInRange(params.startDate, params.endDate);
+  const existingDates = new Set<string>();
+  const pageSize = 1000;
+  let rangeStart = 0;
+
+  // Supabase responses are paged. Read all matching report rows so large campaign libraries do not make the
+  // planner think an already-synced date is missing just because it was beyond the first response page.
+  while (true) {
+    const { data, error } = await admin
+      .from("klaviyo_campaign_reports")
+      .select("send_date")
+      .eq("region_id", params.regionId)
+      .gte("send_date", params.startDate)
+      .lte("send_date", params.endDate)
+      .order("send_date", { ascending: true })
+      .range(rangeStart, rangeStart + pageSize - 1);
+
+    if (error) {
+      const summary = summarizeDatabaseError(error);
+      throw new Error(`Unable to inspect existing Klaviyo campaign report dates for region ${params.regionSlug}. ${summary}`);
+    }
+
+    ((data || []) as Array<{ send_date: string | null }>).forEach((row) => {
+      if (row.send_date) {
+        existingDates.add(row.send_date);
+      }
+    });
+
+    if (!data || data.length < pageSize) {
+      break;
+    }
+
+    rangeStart += pageSize;
+  }
+
+  // Existing daily report rows prove that a historical date was already ingested. The current end date is
+  // always refreshed because same-day campaign numbers can still move before the day fully settles.
+  const datesToFetch = requestedDates.filter((date) => date === params.endDate || !existingDates.has(date));
+  const skippedDateCount = requestedDates.length - datesToFetch.length;
+
+  console.info(
+    `[sync:klaviyo] Campaign performance date plan for region ${params.regionSlug} in run ${params.syncRunId}: requested=${requestedDates.length}, existing=${existingDates.size}, skipped=${skippedDateCount}, fetch=${datesToFetch.length}, forcedRefreshDate=${params.endDate}.`,
+  );
+
+  return datesToFetch;
+}
+
 async function syncRegion(params: {
   syncRunId: string;
   region: RegionIntegrationConfig;
@@ -261,12 +334,20 @@ async function syncRegion(params: {
 
   if (hasKlaviyoCredentials(params.region)) {
     try {
+      const campaignReportDates = await getKlaviyoCampaignReportDatesToFetch({
+        regionId: params.regionId,
+        regionSlug: params.region.slug,
+        syncRunId: params.syncRunId,
+        startDate: params.startDate,
+        endDate: params.endDate,
+      });
       const klaviyoRows = await fetchKlaviyoSyncRows({
         region: params.region,
         regionId: params.regionId,
         syncRunId: params.syncRunId,
         startDate: params.startDate,
         endDate: params.endDate,
+        campaignReportDates,
       });
 
       // Current Klaviyo scope is deliberately narrow: campaigns, campaign performance, campaign audiences,

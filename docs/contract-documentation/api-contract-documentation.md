@@ -15,6 +15,8 @@ Purpose:
 
 - Runs hourly sync for every active region with Shopify or Klaviyo credentials. Shopify rows and the current
   Klaviyo campaign slice are written server-side.
+- Klaviyo campaign performance dates that already exist in `klaviyo_campaign_reports` are skipped before
+  external report calls, except the current sync end date, which is always refreshed and upserted.
 
 Authentication:
 
@@ -48,6 +50,8 @@ Security notes:
 Purpose:
 
 - Allows an authenticated internal user to manually run the latest bounded Shopify and Klaviyo sync.
+- Keeps the requested historical window available while avoiding repeated Klaviyo report calls for
+  already-ingested campaign performance dates.
 
 Authentication:
 

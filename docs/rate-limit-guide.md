@@ -33,7 +33,7 @@ The helper must:
 
 Klaviyo account data ingestion is active only for the current campaign slice. Manual and cron sync call
 Klaviyo campaigns, campaign tags, campaign tag IDs, beta campaign-audience endpoints, and one campaign
-values report request per metric day in each region sync window from server-only code.
+values report request per metric day that still needs campaign performance data from server-only code.
 
 The sync must:
 
@@ -42,6 +42,9 @@ The sync must:
   beta campaign relationship-map fetch includes campaign audiences.
 - Keep campaign performance reporting to one `campaign-values-reports` request per metric day instead of
   per-campaign report calls.
+- Before calling `campaign-values-reports`, inspect existing `klaviyo_campaign_reports.send_date` rows for
+  the requested window, skip already-ingested historical dates, and always refresh the current window end
+  date so same-day metrics are upserted.
 - Adding native rate fields and unique action counts to `campaign-values-reports` should be done in the
   existing daily request body, not by adding per-campaign follow-up requests.
 - Pace campaign values report requests sequentially; Klaviyo's steady limit is low enough that concurrent

@@ -49,13 +49,17 @@ Current synced data:
 | Campaign status | Stored from each campaign's attributes and rendered by the Campaigns table filters/status pill. Archived campaigns are treated as archived in UI filtering. | `klaviyo_campaigns.status`, `klaviyo_campaigns.archived` |
 | Campaign tags | Uses `GET /campaigns?include=tags` as the primary source for campaign tag IDs/resources, then falls back to campaign-scoped tag/tag-ID endpoints only when a campaign payload lacks tag relationships. Per-campaign fallback endpoints do not send `page[size]` because Klaviyo rejects pagination on these relationship resources. | `klaviyo_tags`, `klaviyo_tag_relationships`, `klaviyo_raw_resources` |
 | Campaign audiences | Uses beta `GET /campaigns?include=campaign-audiences` with the `.pre` revision to build one campaign-to-audience relationship map instead of probing every campaign with audience endpoints. | `klaviyo_campaign_audiences`, `klaviyo_campaigns.audience_ids`, `klaviyo_raw_resources` |
-| Campaign performance | Uses one `POST /campaign-values-reports` request per metric day in the region sync window with the configured or auto-detected conversion metric ID. Requests include `campaign_id`, `campaign_message_id`, and `send_channel` groupings, then collapse grouped results to campaign/day rows before upsert. | `klaviyo_campaign_reports` |
+| Campaign performance | Before calling Klaviyo, inspects existing `klaviyo_campaign_reports.send_date` values for the requested window, skips already-ingested historical dates, and always refreshes the current window end date. Each fetched date still uses one paced `POST /campaign-values-reports` request with the configured or auto-detected conversion metric ID. Requests include `campaign_id`, `campaign_message_id`, and `send_channel` groupings, then collapse grouped results to campaign/day rows before upsert. | `klaviyo_campaign_reports` |
 
 ## Date-Scopable Reporting Rules
 
 - Campaign report rows use `klaviyo_campaign_reports.send_date` as the daily metric date for
   `campaign-values-reports` results. The column name is historical; daily performance ingestion should not
   rewrite report rows back to the campaign's send date.
+- Existing `send_date` coverage is also the skip signal for manual and cron campaign performance sync. If a
+  historical date in the requested window already has campaign report rows, the sync does not call Klaviyo
+  for that date again. The current window end date is always re-fetched and upserted because same-day
+  campaign performance can still change.
 - Campaign report rows store Klaviyo native `open_rate`, `click_rate`, `conversion_rate`,
   `revenue_per_recipient`, `delivered`, `opens_unique`, `clicks_unique`, and `conversion_uniques` fields.
   Campaigns UI should display those exact rates/counts instead of recomputing from raw opens/clicks over
@@ -76,7 +80,10 @@ Current synced data:
 - Campaign performance lookup is optional. If Klaviyo rejects a daily Reporting API request or no conversion
   metric ID is configured/detectable, sync should log a sanitized warning and keep metadata rows.
 - Pace daily campaign performance requests because Klaviyo limits campaign values reports to a low steady
-  request rate. Do not fan these requests out concurrently.
+  request rate. Do not fan these requests out concurrently, and do not call Klaviyo for already-ingested
+  historical dates.
+- Logs should include the campaign performance date plan: requested dates, existing dates, skipped dates,
+  dates that will be fetched, and the forced current refresh date.
 - Per-campaign requests should be avoided when collection includes can provide the relationship data.
 - Do not add `page[size]` to campaign-scoped tag relationship fallback endpoints.
 

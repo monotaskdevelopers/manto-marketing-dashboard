@@ -115,6 +115,9 @@ Important columns:
 Stores campaign-level daily reporting rows. The active Klaviyo sync writes this existing table from
 daily `campaign-values-reports` results collapsed to the unique `(region_id, campaign_id, send_date)` grain.
 For these synced performance rows, `send_date` is the metric date for that daily report row.
+The sync also uses existing `send_date` coverage as its no-extra-table skip signal: already-ingested
+historical dates are not requested from Klaviyo again, while the current sync end date is always refreshed
+and upserted.
 
 Important columns:
 

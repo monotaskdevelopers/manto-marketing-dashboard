@@ -705,11 +705,14 @@ async function fetchKlaviyoCampaignValueReportForDay(params: KlaviyoClientParams
 async function fetchKlaviyoDailyCampaignValueReports(params: KlaviyoClientParams & {
   startDate: string;
   endDate: string;
+  reportDates?: string[];
   conversionMetricId: string;
   objectNameById: Map<string, string>;
   warnings: string[];
 }) {
-  const dates = datesInRange(params.startDate, params.endDate);
+  const dates = Array.from(new Set(params.reportDates || datesInRange(params.startDate, params.endDate)))
+    .filter((date) => date >= params.startDate && date <= params.endDate)
+    .sort();
   const rows: KlaviyoReportRow[] = [];
 
   console.info(
@@ -1184,6 +1187,7 @@ export async function fetchKlaviyoSyncRows(params: {
   syncRunId: string;
   startDate: string;
   endDate: string;
+  campaignReportDates?: string[];
 }): Promise<KlaviyoSyncRows> {
   const rows = makeEmptyRows();
   const client = {
@@ -1307,11 +1311,14 @@ export async function fetchKlaviyoSyncRows(params: {
     );
   });
 
-  const conversionMetricId = await resolveConversionMetricId(rows, {
-    privateKey: params.region.klaviyoPrivateKey,
-    regionSlug: params.region.slug,
-    configuredMetricId: params.region.klaviyoConversionMetricId,
-  });
+  const campaignReportDates = params.campaignReportDates || datesInRange(params.startDate, params.endDate);
+  const conversionMetricId = campaignReportDates.length
+    ? await resolveConversionMetricId(rows, {
+        privateKey: params.region.klaviyoPrivateKey,
+        regionSlug: params.region.slug,
+        configuredMetricId: params.region.klaviyoConversionMetricId,
+      })
+    : null;
 
   if (conversionMetricId) {
     try {
@@ -1320,6 +1327,7 @@ export async function fetchKlaviyoSyncRows(params: {
           ...client,
           startDate: params.startDate,
           endDate: params.endDate,
+          reportDates: campaignReportDates,
           conversionMetricId,
           objectNameById: campaignNameById,
           warnings: rows.warnings,
@@ -1361,6 +1369,10 @@ export async function fetchKlaviyoSyncRows(params: {
         `[sync:klaviyo] Continuing without campaign performance rows for region ${params.region.slug}. ${warning}`,
       );
     }
+  } else if (!campaignReportDates.length) {
+    console.info(
+      `[sync:klaviyo] Campaign performance rows skipped for region ${params.region.slug}; all report dates in ${params.startDate} to ${params.endDate} were already ingested.`,
+    );
   }
 
   rows.tagRows = dedupeRows(rows.tagRows, ["region_id", "tag_id"]);
