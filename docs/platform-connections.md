@@ -271,9 +271,10 @@ Current active behavior:
   tag relationship, and sanitized raw campaign/tag/audience resource rows.
 - Stable campaign fetches request included tags when Klaviyo supports them. A per-campaign tag lookup is
   used only as a fallback when a campaign payload does not expose tag relationships.
-- The campaign-audience beta relationship-map fetch uses a `.pre` revision automatically and is logged as a
-  sanitized warning when unavailable.
-- Campaign performance uses one campaign values report request per metric day in the region sync window and
+- The campaign-audience beta relationship-map fetch uses a `.pre` revision automatically, filters
+  incremental calls by top-level `updated_at` only, and is logged as a sanitized warning when unavailable.
+- Campaign performance uses one campaign values report request per selected metric day in the region sync
+  window, caps full-day catch-up work per run, leaves deferred missing dates uncovered for later syncs, and
   is logged as a sanitized warning when unavailable.
 - Flows, profiles, events, metrics, lists, segments, flow Reporting API rows, account-level daily Klaviyo
   metrics, broad raw resources, and images are intentionally not synced by the active Klaviyo sync.

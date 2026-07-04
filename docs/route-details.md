@@ -38,8 +38,8 @@ or route handlers are added, removed, renamed, or materially changed.
 
 | Route | Purpose | How it works | Importance |
 | --- | --- | --- | --- |
-| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; active Shopify-ready and Klaviyo-ready regions sync server-side, and Klaviyo campaign performance skips already-ingested historical dates while refreshing the current date. | Critical |
-| `/api/sync` | Manual sync | Authenticated user triggers a bounded Shopify/Klaviyo sync job; the requested history window remains intact, but existing historical Klaviyo campaign report dates are skipped before external report calls. | High |
+| `/api/cron/hourly-sync` | Hourly sync | Vercel Cron calls this route with `CRON_SECRET`; active Shopify-ready and Klaviyo-ready regions sync server-side, Klaviyo campaign metadata uses an `updated_at` cursor, and campaign performance skips covered stable dates while refreshing the latest 3 report dates plus a capped number of missing full-day report dates. | Critical |
+| `/api/sync` | Manual sync | Authenticated user triggers a bounded Shopify/Klaviyo sync job; the requested history window remains intact, but covered stable Klaviyo report dates are skipped while the latest 7 report dates, a capped missing-date catch-up batch, and targeted older changed campaigns can refresh. | High |
 | `/api/sync/status` | Sync status | Authenticated user reads latest sanitized sync metadata. | Medium |
 
 ## Route Rules

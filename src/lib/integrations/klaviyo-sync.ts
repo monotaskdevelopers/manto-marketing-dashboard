@@ -299,6 +299,10 @@ function buildCampaignChannelFilter(channel: "email" | "sms" | "mobile_push", up
   return filters.join(",");
 }
 
+function buildUpdatedAtFilter(updatedSince?: string | null) {
+  return updatedSince ? `greater-or-equal(updated_at,${updatedSince})` : null;
+}
+
 function buildCampaignIdReportFilter(campaignIds: string[]) {
   const uniqueCampaignIds = uniqueStrings(campaignIds);
 
@@ -1282,42 +1286,26 @@ async function fetchCampaignTags(
 
 async function fetchCampaignAudienceMap(rows: KlaviyoSyncRows, client: KlaviyoClientParams, updatedSince?: string | null) {
   const audienceByCampaignId = new Map<string, CampaignAudiences>();
-  const audienceCollections: KlaviyoCollection[] = [];
-  const channelFetches = [
-    { label: "Email campaign audience relationship map", channel: "email" as const },
-    { label: "SMS campaign audience relationship map", channel: "sms" as const },
-    { label: "Push campaign audience relationship map", channel: "mobile_push" as const },
-  ];
+  const audienceCollection = await fetchOptionalCollection(rows, {
+    ...client,
+    path: "campaigns",
+    label: updatedSince ? "Changed campaign audience relationship map" : "Campaign audience relationship map",
+    query: {
+      // The beta campaign-audience include endpoint only supports top-level campaign filters such as
+      // updated_at, so do not reuse the channel-specific messages.channel filter from the stable endpoint.
+      filter: buildUpdatedAtFilter(updatedSince),
+      include: "campaign-audiences",
+    },
+    pageSize: campaignPageSize,
+    revision: getKlaviyoBetaRevision(),
+  });
 
-  for (const channelFetch of channelFetches) {
-    audienceCollections.push(
-      await fetchOptionalCollection(rows, {
-        ...client,
-        path: "campaigns",
-        label: channelFetch.label,
-        query: {
-          filter: buildCampaignChannelFilter(channelFetch.channel, updatedSince),
-          include: "campaign-audiences",
-        },
-        pageSize: campaignPageSize,
-        revision: getKlaviyoBetaRevision(),
-      }),
-    );
-  }
-
-  if (updatedSince && !audienceCollections.some((collection) => collection.data.length)) {
+  if (updatedSince && !audienceCollection.data.length) {
     console.info(
       `[sync:klaviyo] No campaign audience relationships changed since ${updatedSince} for region ${client.regionSlug}.`,
     );
     return audienceByCampaignId;
   }
-
-  const audienceCollection: KlaviyoCollection = {
-    data: dedupeResources(audienceCollections.flatMap((collection) => collection.data)),
-    included: dedupeResources(audienceCollections.flatMap((collection) => collection.included)),
-    endpointPath: "campaigns?include=campaign-audiences",
-    pageCount: audienceCollections.reduce((total, collection) => total + collection.pageCount, 0),
-  };
   const audienceResourcesById = new Map(
     dedupeResources(audienceCollection.included)
       .filter((resource) => (resource.type || "").toLowerCase().includes("campaign-audience"))

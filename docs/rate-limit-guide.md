@@ -33,18 +33,26 @@ The helper must:
 
 Klaviyo account data ingestion is active only for the current campaign slice. Manual and cron sync call
 Klaviyo campaigns, campaign tags, campaign tag IDs, beta campaign-audience endpoints, and one campaign
-values report request per metric day that still needs campaign performance data from server-only code.
+values report request per selected metric day that still needs campaign performance data from server-only code.
 
 The sync must:
 
 - Use cursor pagination and bounded retry/backoff for 429 responses.
+- Filter campaign collection calls by `updated_at` with a 24-hour safety lag after local campaign metadata
+  exists, instead of fetching every stored campaign on every hourly/manual run.
 - Prefer campaign collection includes for relationship data: stable campaign fetches include tags, and the
   beta campaign relationship-map fetch includes campaign audiences.
+- Filter the beta campaign-audience relationship map only by top-level campaign fields such as `updated_at`;
+  do not send the stable `messages.channel` filter to that beta endpoint.
 - Keep campaign performance reporting to one `campaign-values-reports` request per metric day instead of
   per-campaign report calls.
-- Before calling `campaign-values-reports`, inspect existing `klaviyo_campaign_reports.send_date` rows for
-  the requested window, skip already-ingested historical dates, and always refresh the current window end
-  date so same-day metrics are upserted.
+- Before calling `campaign-values-reports`, inspect `klaviyo_sync_date_coverage` for the requested window,
+  skip already-covered stable historical dates, refresh the latest 3 report dates for cron sync, and refresh
+  the latest 7 report dates for manual sync.
+- Cap selected full-day campaign performance report dates to 8 per sync run after preserving the mutable
+  window. Leave additional missing historical dates uncovered so later syncs continue the backfill.
+- When an older campaign appears in the Klaviyo `updated_at` metadata result, use a campaign values report
+  `campaign_id` filter for that campaign's report date instead of refetching the whole historical day.
 - Adding native rate fields and unique action counts to `campaign-values-reports` should be done in the
   existing daily request body, not by adding per-campaign follow-up requests.
 - Pace campaign values report requests sequentially; Klaviyo's steady limit is low enough that concurrent
@@ -95,4 +103,6 @@ Recommended protection:
   the request lifecycle.
 - Move broader Klaviyo ingestion for flows, profiles, custom object records, customer-agent conversation
   messages, and subscriptions into queued jobs before enabling full historical crawls.
+- Add an explicit backfill queue before allowing operators to force-refresh long historical Klaviyo
+  performance ranges, because the Reporting API steady limit is too low for broad synchronous refetches.
 - Consider Shopify bulk operations only if order volume becomes too high for bounded hourly GraphQL pagination.

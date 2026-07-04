@@ -105,6 +105,12 @@ For the full process, see `/docs/initial-user-setup.md`.
   warnings for missing campaign report/tag/audience scopes.
 - Apply `S006-klaviyo-campaign-report-native-rates.sql`, then run a fresh Klaviyo sync so existing
   campaign rows are replaced with native open/click/conversion rates and unique recipient action counts.
+- Apply `S007-klaviyo-incremental-sync-state.sql` before deploying the incremental sync code so existing
+  campaign report dates seed `klaviyo_sync_date_coverage` and the first post-deploy sync does not refetch
+  the whole stored reporting window.
+- Verify the first post-deploy Klaviyo sync logs `fullDayRequestLimit` and `deferredMissing`, then confirm
+  any deferred historical report dates continue backfilling across later hourly/manual syncs instead of
+  running as one long manual request.
 - Verify combined Shopify/Klaviyo test regions sync both platforms and report partial status only when one platform or optional resource fails.
 - Verify hourly cron sync works in production.
 - Verify no secrets appear in browser bundle, responses, or logs.

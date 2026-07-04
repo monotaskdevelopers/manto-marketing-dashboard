@@ -65,6 +65,8 @@ Next.js and Vercel:
   endpoint pressure.
 - Campaign audience relationship data should come from beta `GET /campaigns?include=campaign-audiences`
   instead of one audience request per campaign.
+- The beta campaign-audience include request should filter incremental work by top-level `updated_at` only;
+  the stable endpoint's `messages.channel` filter is not valid on that beta resource.
 - Campaign-scoped tag relationship fallback endpoints should not receive `page[size]`; Klaviyo rejects that
   query on those resources.
 - Campaign audience beta endpoints should use the `.pre` API revision only for the beta request.
@@ -94,6 +96,9 @@ Decision:
   bounded retries, log sanitized warnings and continue syncing core campaign rows.
 - Treat campaign performance reporting as optional enrichment; after bounded retries, log sanitized warnings
   and continue syncing campaign metadata rows.
+- Cap full-day campaign performance catch-up work per sync run because each selected day is paced through
+  the low-steady-limit Campaign Values Reporting API; uncovered missing dates should remain eligible for
+  later cron/manual syncs instead of being marked complete.
 - Keep beta/pre-release Klaviyo endpoints optional and non-fatal, and send the `.pre` API revision only for
   endpoints that require it.
 - Exclude images and all broader Klaviyo resource families from the active sync because the current product

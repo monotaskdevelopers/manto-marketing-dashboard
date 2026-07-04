@@ -176,12 +176,15 @@ Current behavior:
   values report endpoints when a region has an encrypted Klaviyo private key.
 - Campaign collection calls use Klaviyo `updated_at` filters with a 24-hour safety lag after local campaign
   metadata exists, so unchanged stored campaigns are not fetched on every hourly run.
+- Campaign-audience relationship-map calls use the beta `.pre` campaign include endpoint with only
+  top-level `updated_at` filtering during incremental syncs, because that beta endpoint does not accept the
+  stable endpoint's `messages.channel` filter.
 - Campaign values report requests persist Klaviyo native delivered counts, unique open/click/conversion
   recipient counts, and fractional rate fields so the Campaigns table does not recalculate campaign-list
   metrics from raw totals.
 - Campaign values report requests are planned from `klaviyo_sync_date_coverage`: missing dates and a small
-  recent mutable window use full-day requests, while older changed campaigns use a `campaign_id` report
-  filter instead of refetching a whole historical day.
+  recent mutable window use full-day requests, full-day catch-up work is capped per run, and older changed
+  campaigns use a `campaign_id` report filter instead of refetching a whole historical day.
 - Campaign tag and campaign-audience lookups are campaign-scoped optional details. Missing scopes,
   unsupported beta endpoints, 429 exhaustion after bounded retries, and transient detail failures are logged
   as sanitized warnings and do not fail the whole region.
@@ -196,4 +199,5 @@ Important safeguards:
 - Broader Klaviyo datasets should be added back as explicit product slices with their own rate-limit,
   retention, and privacy rules instead of being hidden inside the campaign sync.
 - Klaviyo campaign values reports do not expose a general changed-since cursor for statistics, so old metric
-  corrections that are not tied to campaign metadata updates require a deliberate backfill/operator job.
+  corrections that are not tied to campaign metadata updates require a deliberate backfill/operator job or
+  the paced missing-date catch-up path.

@@ -48,8 +48,8 @@ Current synced data:
 | Campaigns | Initial sync fetches email, SMS, and mobile push campaigns. Later syncs filter campaign collection calls by `updated_at` with a 24-hour safety lag, then promote name, status, channel list, archived flag, A/B test metadata, send dates, and raw campaign payload only for changed campaigns. | `klaviyo_campaigns`, `klaviyo_raw_resources` |
 | Campaign status | Stored from each campaign's attributes and rendered by the Campaigns table filters/status pill. Archived campaigns are treated as archived in UI filtering. | `klaviyo_campaigns.status`, `klaviyo_campaigns.archived` |
 | Campaign tags | Uses `GET /campaigns?include=tags` as the primary source for campaign tag IDs/resources, then falls back to campaign-scoped tag/tag-ID endpoints only when a campaign payload lacks tag relationships. Per-campaign fallback endpoints do not send `page[size]` because Klaviyo rejects pagination on these relationship resources. | `klaviyo_tags`, `klaviyo_tag_relationships`, `klaviyo_raw_resources` |
-| Campaign audiences | Uses beta `GET /campaigns?include=campaign-audiences` with the `.pre` revision to build one campaign-to-audience relationship map instead of probing every campaign with audience endpoints. | `klaviyo_campaign_audiences`, `klaviyo_campaigns.audience_ids`, `klaviyo_raw_resources` |
-| Campaign performance | Before calling Klaviyo, reads `klaviyo_sync_date_coverage` for the requested window, skips already-covered stable dates, refreshes a recent mutable window, and adds targeted old-date refreshes when Klaviyo returns changed campaign metadata. Each full-day date still uses one paced `POST /campaign-values-reports` request with the configured or auto-detected conversion metric ID. Targeted old-date refreshes add a `campaign_id` filter so they update changed campaigns without refetching the whole day. Requests include `campaign_id`, `campaign_message_id`, and `send_channel` groupings, then collapse grouped results to campaign/day rows before upsert. | `klaviyo_campaign_reports`, `klaviyo_sync_date_coverage` |
+| Campaign audiences | Uses beta `GET /campaigns?include=campaign-audiences` with the `.pre` revision to build one campaign-to-audience relationship map instead of probing every campaign with audience endpoints. Incremental audience-map requests filter only by top-level `updated_at`, because the beta endpoint does not accept the stable endpoint's `messages.channel` filter. | `klaviyo_campaign_audiences`, `klaviyo_campaigns.audience_ids`, `klaviyo_raw_resources` |
+| Campaign performance | Before calling Klaviyo, reads `klaviyo_sync_date_coverage` for the requested window, skips already-covered stable dates, refreshes a recent mutable window, caps full-day catch-up work per run, and adds targeted old-date refreshes when Klaviyo returns changed campaign metadata. Each selected full-day date still uses one paced `POST /campaign-values-reports` request with the configured or auto-detected conversion metric ID. Deferred missing dates stay uncovered and are picked up by later syncs. Targeted old-date refreshes add a `campaign_id` filter so they update changed campaigns without refetching the whole day. Requests include `campaign_id`, `campaign_message_id`, and `send_channel` groupings, then collapse grouped results to campaign/day rows before upsert. | `klaviyo_campaign_reports`, `klaviyo_sync_date_coverage` |
 
 ## Date-Scopable Reporting Rules
 
@@ -62,6 +62,9 @@ Current synced data:
 - Cron sync refreshes the latest 3 report dates in the requested window because same-day and recent
   attribution numbers can still move. Manual sync refreshes the latest 7 report dates because an operator
   explicitly asked for fresher data.
+- Full-day campaign report requests are capped at 8 selected dates per sync run after preserving the
+  mutable window. Older missing dates are deferred, not marked covered, so hourly/manual sync continues
+  backfilling them without turning one manual request into a long historical Reporting API crawl.
 - Campaign metadata uses Klaviyo's `updated_at` filter after the first stored campaign set exists, with a
   24-hour safety lag. If an older campaign appears in that incremental metadata result, the sync adds a
   targeted campaign-performance request for that campaign's report date using a `campaign_id` report filter.
@@ -91,9 +94,12 @@ Current synced data:
   request rate. Do not fan these requests out concurrently, and do not call Klaviyo for already-covered
   stable historical dates.
 - Logs should include the campaign metadata cursor plan, campaign performance date coverage plan, skipped
-  dates, mutable-window size, changed-campaign plan count, and produced coverage rows.
+  dates, mutable-window size, full-day request cap, deferred missing-date count, changed-campaign plan
+  count, and produced coverage rows.
 - Per-campaign requests should be avoided when collection includes can provide the relationship data.
 - Do not add `page[size]` to campaign-scoped tag relationship fallback endpoints.
+- Do not reuse the stable `messages.channel` campaign filter on beta campaign-audience map requests; that
+  beta resource only supports top-level campaign fields such as `updated_at`.
 
 ## Deferred Klaviyo Areas
 

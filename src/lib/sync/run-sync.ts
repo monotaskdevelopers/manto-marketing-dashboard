@@ -40,6 +40,9 @@ type KlaviyoCampaignMetadataState = {
 const klaviyoCampaignMetadataSafetyLagHours = 24;
 const klaviyoCronMutableReportWindowDays = 3;
 const klaviyoManualMutableReportWindowDays = 7;
+// Campaign values reports are paced at roughly 2 requests/minute, so cap full-day catch-up work per run
+// and let uncovered historical dates continue backfilling across later cron/manual syncs.
+const klaviyoMaxFullDayCampaignReportDatesPerRun = 8;
 
 function toDateOnly(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -367,21 +370,26 @@ async function getKlaviyoCampaignReportDatePlan(params: {
     }
   });
 
-  const datePlan = requestedDates.flatMap((metricDate): KlaviyoCampaignReportDatePlan[] => {
-    if (mutableDates.has(metricDate)) {
-      return [{ metricDate, reason: "mutable" }];
-    }
-
-    if (!coveredDates.has(metricDate)) {
-      return [{ metricDate, reason: "missing" }];
-    }
-
-    return [];
-  });
+  const mutableDatePlans = requestedDates
+    .filter((metricDate) => mutableDates.has(metricDate))
+    .map((metricDate): KlaviyoCampaignReportDatePlan => ({ metricDate, reason: "mutable" }));
+  const missingDatePlans = requestedDates
+    .filter((metricDate) => !mutableDates.has(metricDate) && !coveredDates.has(metricDate))
+    .map((metricDate): KlaviyoCampaignReportDatePlan => ({ metricDate, reason: "missing" }));
+  const fullDayRequestLimit = Math.max(
+    klaviyoMaxFullDayCampaignReportDatesPerRun,
+    mutableDatePlans.length,
+  );
+  const missingDateFetchLimit = Math.max(0, fullDayRequestLimit - mutableDatePlans.length);
+  const selectedMissingDatePlans = missingDatePlans.slice(0, missingDateFetchLimit);
+  const deferredMissingDateCount = missingDatePlans.length - selectedMissingDatePlans.length;
+  const datePlan = [...selectedMissingDatePlans, ...mutableDatePlans].sort((left, right) =>
+    left.metricDate.localeCompare(right.metricDate),
+  );
   const skippedDateCount = requestedDates.length - datePlan.length;
 
   console.info(
-    `[sync:klaviyo] Campaign performance date plan for region ${params.regionSlug} in run ${params.syncRunId}: requested=${requestedDates.length}, covered=${coveredDates.size}, mutableWindowDays=${mutableWindowDays}, skipped=${skippedDateCount}, fetch=${datePlan.length}.`,
+    `[sync:klaviyo] Campaign performance date plan for region ${params.regionSlug} in run ${params.syncRunId}: requested=${requestedDates.length}, covered=${coveredDates.size}, mutableWindowDays=${mutableWindowDays}, fullDayRequestLimit=${fullDayRequestLimit}, skipped=${skippedDateCount}, fetch=${datePlan.length}, deferredMissing=${deferredMissingDateCount}.`,
   );
 
   return datePlan;
