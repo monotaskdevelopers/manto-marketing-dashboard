@@ -173,3 +173,10 @@ Mitigation:
 - Add deployment-level security headers if missing.
 - Add audit logging for manual sync trigger user IDs if leadership needs traceability.
 - Re-check the dependency audit and upgrade Next.js when a safe patched release is available.
+
+## 7 September 2026: Encryption Key In Local Example File
+
+The uncommitted `.env.example` contained the same encryption key as `.env.local`. The committed HEAD
+example was empty. The value has been removed from the example. Treat retained copies as exposure:
+review where it was shared and arrange server-side re-encryption of existing connections before rotating
+the environment key. No live key rotation or database writes were performed during deployment preparation.

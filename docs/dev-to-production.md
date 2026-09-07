@@ -116,3 +116,14 @@ For the full process, see `/docs/initial-user-setup.md`.
 - Verify no secrets appear in browser bundle, responses, or logs.
 - Verify no Klaviyo profile PII or raw event payloads appear in logs.
 - Verify no demo data appears when `DEMO_MODE=false`.
+
+## 7 September 2026 Deployment Preparation
+
+- Owner approved daily automatic sync instead of hourly. `vercel.json` now schedules the existing protected
+  `/api/cron/hourly-sync` endpoint at `0 3 * * *` (03:00 UTC; 08:00 Pakistan time). On Hobby the invocation
+  may occur anywhere within that hour. Manual refresh remains available.
+- Target account: Sanasgalaxy (`sanayousuf73-5542`). Deployment is not yet complete.
+- The local encryption key had been copied into the uncommitted `.env.example`; its value was removed.
+  The committed HEAD example was empty. Review retained copies and re-encrypt stored platform credentials
+  before replacing the active key; changing only the environment key breaks existing connections.
+- No local build, tests, database migrations, or Sana invitation have been run during this preparation.

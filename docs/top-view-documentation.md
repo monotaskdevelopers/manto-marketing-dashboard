@@ -16,6 +16,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 
 | File | Purpose | What it contains |
 | --- | --- | --- |
+| `/docs/sana-operator-guide.md` | Nontechnical operator guide | Draft how/what/why/where guide, daily refresh workflow, current reporting limits, safe connection handling, and pending access details. |
 | `/docs/product-requirements.md` | Product source of truth | PRD summary, MVP boundaries, user goals, page requirements, success criteria, and known open questions. |
 | `/docs/research-and-decisions.md` | Research record | Official-source research for Klaviyo, Shopify, Supabase, Next.js, and Vercel Cron, plus the architecture decisions that came from that research. |
 | `/docs/klaviyo-api-ingestion-plan.md` | Klaviyo API ingestion map | Official Klaviyo API surfaces reviewed, current sync coverage, skipped image handling, date-scopable reporting rules, and follow-up resource groups. |
@@ -23,6 +24,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 | `/docs/initial-user-setup.md` | Initial user setup guide | One-time Supabase Auth bootstrap process, security rules, verification, and cleanup requirements. |
 | `/docs/implementation-plan.md` | Build plan | Layman explanation, technical sequence, implementation phases, data flow, and execution checklist. |
 | `/docs/db-plan.md` | Database plan | Tables, indexes, RLS posture, schema naming, migrations, and data retention assumptions. |
+| `/docs/database-access.md` | Database account location | Owner-provided Supabase account for the existing database and the cancelled replacement setup status. |
 | `/docs/contract-documentation/api-contract-documentation.md` | API contract index | Route handlers, methods, auth requirements, request/response shapes, and criticality. |
 | `/docs/middleware-details.md` | Middleware/proxy documentation | Supabase session refresh proxy, route coverage, and security limits. |
 | `/docs/route-details.md` | App route index | User-facing pages, primary sidebar hierarchy, and internal API routes with purpose, behavior, and importance. |
@@ -50,7 +52,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Styling: Tailwind CSS.
 - Database and auth: Supabase.
 - Data sources: Shopify Admin GraphQL API and the narrowed Klaviyo campaign sync.
-- Sync frequency: Vercel Cron calls the sync route every hour.
+- Sync frequency: Vercel Cron is configured to call the sync route daily at 03:00 UTC (deployment pending).
 - Manual sync: authenticated internal users can trigger a fresh Shopify and Klaviyo sync from Settings.
 - UI reset: authenticated report pages except Settings, Campaigns, and Flows are intentionally blank placeholders while the new experience is designed.
 - Campaigns and Flows: rebuilt Klaviyo-style pages render existing synced report rows, metadata enrichment, and empty states instead of static sample data; Campaigns now uses client-side table search/filters/sorting and filter-aware metric cards over loaded rows plus a compact reusable URL-backed date picker.
