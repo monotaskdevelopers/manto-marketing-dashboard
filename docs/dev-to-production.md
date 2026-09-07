@@ -126,4 +126,12 @@ For the full process, see `/docs/initial-user-setup.md`.
 - The local encryption key had been copied into the uncommitted `.env.example`; its value was removed.
   The committed HEAD example was empty. Review retained copies and re-encrypt stored platform credentials
   before replacing the active key; changing only the environment key breaks existing connections.
-- No local build, tests, database migrations, or Sana invitation have been run during this preparation.
+- The owner approved the production push and build. `next build` passed, including TypeScript and route
+  generation. The initial sandbox attempt failed because a build worker could not bind a local port;
+  the approved run outside the sandbox succeeded. No migrations or Sana invitation were run.
+- Read-only database checks succeeded for regions, platform connections, and incremental sync coverage.
+  Sana does not yet have an Auth user.
+- GitHub rejected the push with HTTP 403: the currently authenticated `HashirtheDev` account has no write
+  access to `monotaskdevelopers/manto-marketing-dashboard`. The browser account switcher has no other saved
+  account. Release remains local until an authorized repository account is connected.
+- No production URL exists yet and no onboarding email has been sent.
