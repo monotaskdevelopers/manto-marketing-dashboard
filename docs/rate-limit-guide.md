@@ -106,3 +106,7 @@ Recommended protection:
 - Add an explicit backfill queue before allowing operators to force-refresh long historical Klaviyo
   performance ranges, because the Reporting API steady limit is too low for broad synchronous refetches.
 - Consider Shopify bulk operations only if order volume becomes too high for bounded hourly GraphQL pagination.
+
+## Invitation setup
+
+`/welcome` uses Supabase Auth `verifyOtp`, `getUser`, and `updateUser` directly with the public key. Supabase enforces Auth rate limits and one-time token expiry. The form prevents concurrent submits; it is not a distributed rate limiter. No public invitation-creation endpoint exists.

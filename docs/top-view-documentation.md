@@ -16,6 +16,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 
 | File | Purpose | What it contains |
 | --- | --- | --- |
+| `/docs/pages/welcome.md` | Invitation setup page | Private invitation acceptance, recipient password setup, authorization, and recovery limitations. |
 | `/docs/sana-operator-guide.md` | Nontechnical operator guide | Draft how/what/why/where guide, daily refresh workflow, current reporting limits, safe connection handling, and pending access details. |
 | `/docs/product-requirements.md` | Product source of truth | PRD summary, MVP boundaries, user goals, page requirements, success criteria, and known open questions. |
 | `/docs/research-and-decisions.md` | Research record | Official-source research for Klaviyo, Shopify, Supabase, Next.js, and Vercel Cron, plus the architecture decisions that came from that research. |

@@ -180,3 +180,7 @@ The uncommitted `.env.example` contained the same encryption key as `.env.local`
 example was empty. The value has been removed from the example. Treat retained copies as exposure:
 review where it was shared and arrange server-side re-encryption of existing connections before rotating
 the environment key. No live key rotation or database writes were performed during deployment preparation.
+
+## Invitation onboarding
+
+The new `/welcome` page accepts only operator-issued invite hashes in a URL fragment, consumes them on explicit form submit, checks recipient identity before password update, and removes the fragment from browser history. Treat email invitation links as credentials. Public signup is not introduced. See `/docs/pages/welcome.md` for partial-completion and recovery limitations.

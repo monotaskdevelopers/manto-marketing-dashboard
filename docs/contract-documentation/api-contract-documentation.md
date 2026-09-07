@@ -201,3 +201,7 @@ Important safeguards:
 - Klaviyo campaign values reports do not expose a general changed-since cursor for statistics, so old metric
   corrections that are not tied to campaign metadata updates require a deliberate backfill/operator job or
   the paced missing-date catch-up path.
+
+## Invitation Auth calls
+
+`src/app/welcome/welcome-form.tsx` calls Supabase Auth `verifyOtp` with an invite token hash, then `getUser` and `updateUser({password})` under the verified recipient session. No new application API route or service-role browser access is added. Failure messages are generic and never echo tokens or credentials.

@@ -25,3 +25,7 @@ must avoid PII and secrets, and they should be reviewed before production to dec
 - Supabase write error logs may include PostgREST error code, message, details, and hint only after secret redaction.
 - Klaviyo ingestion logs must never include profile emails, phone numbers, names, event properties, audience membership payloads, message payloads, flow message payloads, push tokens, subscription details, or raw JSON:API payloads.
 - Review this file before production launch.
+
+## Invitation setup
+
+`src/app/welcome/welcome-form.tsx` adds two `console.info` events: `[account-setup] Invitation verified.` and `[account-setup] Password saved.` They contain no user identifiers, passwords, or tokens. Review before wider release.

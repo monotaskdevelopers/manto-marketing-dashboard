@@ -54,3 +54,7 @@ or route handlers are added, removed, renamed, or materially changed.
 - Future analytics table filters should stay inside the table header; use URL-driven controls for dataset-changing
   filters and client-side controls for table-only filtering over rows that are already loaded.
 - Future pages with multiple tables should use scoped query parameter names so one table's search, filter, and sort state does not overwrite another table's state.
+
+## Invitation setup
+
+- `/welcome`: public invitation landing page; verifies an operator-issued invite only on form submission and lets the recipient choose a password. See `/docs/pages/welcome.md`.
