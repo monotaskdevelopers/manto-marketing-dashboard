@@ -135,3 +135,17 @@ For the full process, see `/docs/initial-user-setup.md`.
   access to `monotaskdevelopers/manto-marketing-dashboard`. The browser account switcher has no other saved
   account. Release remains local until an authorized repository account is connected.
 - No production URL exists yet and no onboarding email has been sent.
+
+## Deployment progress after owner sign-in
+
+- Repository pushes now succeed using the existing `monotaskdevelopers` login.
+- The browser upload created `https://vercel.com/sanasgalaxy/manto-marketing-dashboard-release`.
+  Its initial build compiled successfully but failed during prerendering because production Supabase
+  variables were not yet configured. It is not a working production deployment.
+- The built `/welcome` invitation flow is pushed to GitHub; it still needs deployment.
+- Automatic approval review blocked importing the production environment file pending explicit
+  approval to transmit this app's credentials to the named Vercel project's Production environment.
+- A read-only Auth settings request returned `disable_signup=false`. Because the current app grants
+  authenticated users internal reporting access, disable public signup before launch. The signed-in
+  Supabase browser account could not access project `vhloejynikpbrllplduw`; the project owner must sign in.
+- No invitation has been created or emailed to Sana, and no migration was applied.
