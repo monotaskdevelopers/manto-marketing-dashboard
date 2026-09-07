@@ -6,6 +6,20 @@ It focuses on secrets, redirects, cron behavior, Supabase policies, data sync sa
 
 # Development To Production Checklist
 
+## Current release: 7 September 2026
+
+- Live: https://manto-marketing-dashboard-release.vercel.app in the requested Sanasgalaxy Vercel account.
+- Final deployment `dpl_9EXwfPoRUub6qF8xdUxWi7eLeRos` is READY and aliased to production. Application source is commit `2a4c3d4`; subsequent changes are handoff documentation and environment-file ignore protection.
+- Vercel's production build passed TypeScript and generated all 15 pages, including `/welcome`.
+- Production `/welcome` and `/login` return 200. Anonymous `/settings` and `/klaviyo/campaigns` redirect to login; `/api/sync/status` and `/api/cron/hourly-sync` return 401.
+- Public Supabase signup was disabled through the owner's dashboard and verified with `disable_signup=true`. No database migrations were applied.
+- Sana's private invitation and plain-English onboarding email were sent to the authorized Gmail address; Gmail returned SENT. Recipient delivery, password setup, and first authenticated session are not yet verified.
+- Vercel Cron is enabled at `0 3 * * *` (08:00–09:00 Pakistan time on Hobby). First scheduled run remains unobserved.
+- GitHub main was pushed. GitHub automatic deployment is not connected; deploy future changes manually to this project.
+- The reports' existing placeholder and flow-sync limitations remain documented in `/docs/sana-operator-guide.md`. This release does not certify the remaining checklist below as complete.
+
+Preparation notes at the end of this file are historical and superseded by this release status where they conflict.
+
 ## Required Environment Variables
 
 Public browser-safe variables:

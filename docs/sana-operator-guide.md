@@ -1,12 +1,12 @@
 <!--
 File description:
 Plain-English operator guide for Sana. Covers the dashboard purpose, navigation, daily work, refreshes,
-limits, and safe connection handling. This is a draft until deployment and personal access are verified.
+limits, and safe connection handling. Records the live website and invitation handoff.
 -->
 
 # Sana’s Marketing Dashboard Guide
 
-Status: draft; the website is not yet deployed and access has not yet been issued.
+Status: live on 7 September 2026. Sana's private invitation and this guide were emailed; her password setup and first sign-in remain for her to complete.
 
 ## What and why
 
@@ -16,7 +16,10 @@ it does not send marketing emails or edit campaigns in Klaviyo.
 
 ## Where to start
 
-Open the live website link provided after launch and sign in with your own approved account.
+Open https://manto-marketing-dashboard-release.vercel.app/login and sign in with your own approved account.
+For your first visit, use the private invitation in your email and choose your own password of at least
+12 characters. Your sign-in email is sana.yousuf73@gmail.com. Keep the invitation private; ask the tool
+owner for a fresh link if it expires.
 Vercel hosts the website; your everyday work happens inside the dashboard, not inside Vercel.
 The main Dashboard page is currently blank while it is being redesigned. Use the left menu to open
 Analytics → Klaviyo → Campaigns.
@@ -33,7 +36,7 @@ Analytics → Klaviyo → Campaigns.
 
 ## Daily routine
 
-Automatic updates are configured for once a day, around 08:00–09:00 Pakistan time after deployment.
+Automatic updates are enabled once a day, around 08:00–09:00 Pakistan time.
 If you need newer data, open Settings and use the manual sync/refresh control. Wait for the result
 instead of repeatedly clicking. Older campaign dates may fill in over several updates.
 If a result is empty, first check the date range, region, and filters; empty does not always mean zero sales.
@@ -55,8 +58,10 @@ so keep your login private and sign out on shared computers.
 - If refresh fails or reports look wrong, send the tool owner the page name, date range, region, and error
   wording. Avoid sharing passwords, keys, or screenshots containing private customer information.
 
-## Access details to add after launch
+## Launch details
 
-- Live website: pending.
-- Personal sign-in instructions: pending verification.
-- Deployment and daily schedule verification: pending.
+- Live website: https://manto-marketing-dashboard-release.vercel.app.
+- Personal invitation and getting-started email sent on 7 September 2026. Password setup is completed by Sana.
+- Production build and public setup/login pages verified; report/settings pages require sign-in.
+- Daily cron is enabled; its first scheduled production run has not yet been observed.
+- Future software releases require a manual Vercel deployment; GitHub automatic deployment is not connected.

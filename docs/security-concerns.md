@@ -185,10 +185,15 @@ the environment key. No live key rotation or database writes were performed duri
 
 The new `/welcome` page accepts only operator-issued invite hashes in a URL fragment, consumes them on explicit form submit, checks recipient identity before password update, and removes the fragment from browser history. Treat email invitation links as credentials. Public signup is not introduced. See `/docs/pages/welcome.md` for partial-completion and recovery limitations.
 
-## Launch blocker: public signup enabled
+## Resolved launch blocker: public signup enabled
 
 On 7 September 2026, a read-only request to the configured project's Auth settings returned
 `disable_signup=false` and `mailer_autoconfirm=false`. Email confirmation does not limit signup to
 approved staff. Current authenticated-user reporting policies and connection actions assume trusted
 internal accounts. Disable public signup in the existing project's Auth settings before launch;
-review the user list for unintended accounts. The current browser account lacks settings access.
+review the user list for unintended accounts. The browser account initially lacked settings access.
+
+Resolved later on 7 September: the owner signed into the correct project, public signup was disabled,
+and a live Auth settings read returned `disable_signup=true`. Sana received a private invite only.
+Production anonymous report/settings access redirects to login; sync and cron endpoints return 401.
+Her password setup and first authenticated visit remain recipient actions, not verified by the operator.

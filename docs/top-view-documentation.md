@@ -17,7 +17,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 | File | Purpose | What it contains |
 | --- | --- | --- |
 | `/docs/pages/welcome.md` | Invitation setup page | Private invitation acceptance, recipient password setup, authorization, and recovery limitations. |
-| `/docs/sana-operator-guide.md` | Nontechnical operator guide | Draft how/what/why/where guide, daily refresh workflow, current reporting limits, safe connection handling, and pending access details. |
+| `/docs/sana-operator-guide.md` | Nontechnical operator guide | Live website, invitation handoff, how/what/why/where guide, daily refresh workflow, reporting limits, and safe connection handling. |
 | `/docs/product-requirements.md` | Product source of truth | PRD summary, MVP boundaries, user goals, page requirements, success criteria, and known open questions. |
 | `/docs/research-and-decisions.md` | Research record | Official-source research for Klaviyo, Shopify, Supabase, Next.js, and Vercel Cron, plus the architecture decisions that came from that research. |
 | `/docs/klaviyo-api-ingestion-plan.md` | Klaviyo API ingestion map | Official Klaviyo API surfaces reviewed, current sync coverage, skipped image handling, date-scopable reporting rules, and follow-up resource groups. |
@@ -53,7 +53,7 @@ This project is an internal reporting dashboard that combines Shopify sales data
 - Styling: Tailwind CSS.
 - Database and auth: Supabase.
 - Data sources: Shopify Admin GraphQL API and the narrowed Klaviyo campaign sync.
-- Sync frequency: Vercel Cron is configured to call the sync route daily at 03:00 UTC (deployment pending).
+- Sync frequency: Vercel Cron is deployed and enabled daily at 03:00 UTC, within the Hobby one-hour window; first scheduled production execution is not yet observed.
 - Manual sync: authenticated internal users can trigger a fresh Shopify and Klaviyo sync from Settings.
 - UI reset: authenticated report pages except Settings, Campaigns, and Flows are intentionally blank placeholders while the new experience is designed.
 - Campaigns and Flows: rebuilt Klaviyo-style pages render existing synced report rows, metadata enrichment, and empty states instead of static sample data; Campaigns now uses client-side table search/filters/sorting and filter-aware metric cards over loaded rows plus a compact reusable URL-backed date picker.
